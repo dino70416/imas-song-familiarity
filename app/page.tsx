@@ -16,7 +16,7 @@ interface Song {
 }
 
 export default function SongFamiliarityHub() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,10 +33,18 @@ export default function SongFamiliarityHub() {
   // 燈箱控制
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // 表單輸入狀態
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+  const [nicknameInput, setNicknameInput] = useState('');
+  const [themeColorInput, setThemeColorInput] = useState('#92cfbb');
+
   const [authError, setAuthError] = useState('');
   const [authMessage, setAuthMessage] = useState('');
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsSuccess, setSettingsSuccess] = useState('');
 
   // 計時器參照
   const autoSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -216,7 +224,51 @@ export default function SongFamiliarityHub() {
     }
   }
 
-  // 7. 過濾歌曲清單 (效能高度最佳化)
+  // 7. 使用者個人設定儲存
+  async function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setSettingsError('');
+    setSettingsSuccess('');
+
+    try {
+      const res = await fetch('/api/user/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: nicknameInput, themeColor: themeColorInput }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setSettingsError(data.error || '儲存設定失敗。');
+      } else {
+        setSettingsSuccess('個人設定儲存成功！');
+        // 更新 NextAuth 用戶端 Session
+        await update({
+          nickname: nicknameInput,
+          themeColor: themeColorInput,
+        });
+        setTimeout(() => {
+          setShowSettingsModal(false);
+          setSettingsSuccess('');
+        }, 1000);
+      }
+    } catch (err) {
+      setSettingsError('更新個人設定時發生錯誤。');
+    }
+  }
+
+  // 初始化設定表單
+  function openSettings() {
+    if (session?.user) {
+      setNicknameInput(session.user.nickname || session.user.username);
+      setThemeColorInput(session.user.themeColor || '#92cfbb');
+      setSettingsError('');
+      setSettingsSuccess('');
+      setShowSettingsModal(true);
+    }
+  }
+
+  // 8. 過濾歌曲清單 (效能高度最佳化)
   const filteredSongs = songs.filter((song) => {
     // Brand 篩選 (不為 all 時強制符合)
     if (selectedBrand !== 'all' && song.brand !== selectedBrand) {
@@ -225,7 +277,6 @@ export default function SongFamiliarityHub() {
 
     // MusicType 篩選
     if (selectedType !== 'all') {
-      // 包含判定
       const typeStr = song.musicType.toLowerCase();
       if (!typeStr.includes(selectedType)) return false;
     }
@@ -245,8 +296,21 @@ export default function SongFamiliarityHub() {
     return true;
   });
 
+  // 動態設定主題色與 Glow 變數
+  const currentThemeColor = session?.user?.themeColor || '#92cfbb';
+  const r = parseInt(currentThemeColor.slice(1, 3), 16) || 146;
+  const g = parseInt(currentThemeColor.slice(3, 5), 16) || 207;
+  const b = parseInt(currentThemeColor.slice(5, 7), 16) || 187;
+  const currentAccentGlow = `rgba(${r}, ${g}, ${b}, 0.15)`;
+
   return (
-    <>
+    <div style={{
+      ['--accent-color' as any]: currentThemeColor,
+      ['--accent-glow' as any]: currentAccentGlow,
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '100vh',
+    }}>
       <header>
         <div className="container header-content">
           <h1>IMAS Song Familiarity Hub</h1>
@@ -254,10 +318,13 @@ export default function SongFamiliarityHub() {
             {status === 'authenticated' && session?.user ? (
               <>
                 <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                  Hi, <strong>{session.user.username}</strong>
+                  Hi, <strong>{session.user.nickname || session.user.username}</strong>
                 </span>
-                <a href={`/playlist/${session.user.username}`} target="_blank" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                  我的公開歌單
+                <button onClick={openSettings} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                  個人設定
+                </button>
+                <a href={`/playlist/${session.user.shareCode}`} target="_blank" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                  公開歌單
                 </a>
                 <a href="/collab" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
                   共同歌單
@@ -338,8 +405,6 @@ export default function SongFamiliarityHub() {
             
             {filteredSongs.map((song) => {
               const currentFamiliarity = selections[song.id] || 0;
-              
-              // 取得 Brand 文字簡寫
               const brandClean = song.brand.replace('music_', '').toUpperCase();
 
               return (
@@ -508,6 +573,90 @@ export default function SongFamiliarityHub() {
           </div>
         </div>
       )}
-    </>
+
+      {/* 個人設定彈出視窗 */}
+      {showSettingsModal && session?.user && (
+        <div className="modal-overlay" onClick={() => setShowSettingsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>個人設定</h2>
+            <form onSubmit={handleSaveSettings}>
+              <div className="form-group">
+                <label>使用者暱稱</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  required
+                  value={nicknameInput}
+                  onChange={(e) => setNicknameInput(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>自訂主題顏色</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    className="form-input"
+                    style={{ width: '60px', height: '40px', padding: '2px', cursor: 'pointer' }}
+                    value={themeColorInput}
+                    onChange={(e) => setThemeColorInput(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={themeColorInput}
+                    onChange={(e) => setThemeColorInput(e.target.value)}
+                    placeholder="#92cfbb"
+                    pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>個人公開歌單連結 (識別碼已雜湊保護)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    readOnly
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/playlist/${session.user.shareCode}`}
+                    style={{ background: 'var(--bg-base)', color: 'var(--text-muted)' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ whiteSpace: 'nowrap' }}
+                    onClick={() => {
+                      const url = `${window.location.origin}/playlist/${session.user.shareCode}`;
+                      navigator.clipboard.writeText(url);
+                      alert('已複製歌單網址至剪貼簿！');
+                    }}
+                  >
+                    複製
+                  </button>
+                </div>
+              </div>
+              {settingsError && (
+                <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px' }}>
+                  {settingsError}
+                </div>
+              )}
+              {settingsSuccess && (
+                <div style={{ color: '#10b981', fontSize: '13px', marginTop: '8px' }}>
+                  {settingsSuccess}
+                </div>
+              )}
+              <div className="modal-actions">
+                <button type="button" onClick={() => setShowSettingsModal(false)} className="btn btn-secondary">
+                  取消
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  儲存設定
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

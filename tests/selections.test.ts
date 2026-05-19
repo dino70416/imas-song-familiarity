@@ -8,10 +8,13 @@ let testSongId: string;
 
 beforeAll(async () => {
   // 建立測試使用者
+  const username = `testuser_${Date.now()}`;
   const user = await prisma.user.create({
     data: {
-      username: `testuser_${Date.now()}`,
+      username,
       password: 'password123',
+      nickname: username,
+      shareCode: `code_${Date.now()}`,
     },
   });
   testUserId = user.id;

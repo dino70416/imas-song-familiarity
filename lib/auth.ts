@@ -34,15 +34,25 @@ export const authOptions: AuthOptions = {
           id: user.id,
           name: user.username,
           username: user.username,
+          nickname: user.nickname,
+          shareCode: user.shareCode,
+          themeColor: user.themeColor,
         };
       }
     })
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
-        token.username = user.name;
+        token.username = user.username;
+        token.nickname = (user as any).nickname;
+        token.shareCode = (user as any).shareCode;
+        token.themeColor = (user as any).themeColor;
+      }
+      if (trigger === 'update' && session) {
+        if (session.nickname !== undefined) token.nickname = session.nickname;
+        if (session.themeColor !== undefined) token.themeColor = session.themeColor;
       }
       return token;
     },
@@ -50,6 +60,9 @@ export const authOptions: AuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.username = token.username as string;
+        session.user.nickname = token.nickname as string;
+        session.user.shareCode = token.shareCode as string;
+        session.user.themeColor = token.themeColor as string;
       }
       return session;
     }

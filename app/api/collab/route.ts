@@ -3,37 +3,37 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
-    const { usernames } = await request.json();
+    const { shareCodes } = await request.json();
 
-    if (!usernames || !Array.isArray(usernames) || usernames.length === 0) {
+    if (!shareCodes || !Array.isArray(shareCodes) || shareCodes.length === 0) {
       return NextResponse.json(
-        { error: '請提供有效的帳號清單。' },
+        { error: '請提供有效的分享碼清單。' },
         { status: 400 }
       );
     }
 
-    // 清理與去重帳號名稱
-    const cleanUsernames = Array.from(new Set(usernames.map((u) => u.trim()).filter(Boolean)));
+    // 清理與去重分享碼
+    const cleanShareCodes = Array.from(new Set(shareCodes.map((s) => s.trim()).filter(Boolean)));
 
-    if (cleanUsernames.length < 2) {
+    if (cleanShareCodes.length < 2) {
       return NextResponse.json(
-        { error: '請至少輸入兩個不同的帳號來比對共同歌單。' },
+        { error: '請至少輸入兩個不同的分享碼來比對共同歌單。' },
         { status: 400 }
       );
     }
 
-    // 1. 獲取所有目標使用者 ID
+    // 1. 獲取所有目標使用者（依 shareCode 查詢，保護原始帳號）
     const dbUsers = await prisma.user.findMany({
       where: {
-        username: { in: cleanUsernames },
+        shareCode: { in: cleanShareCodes },
       },
     });
 
-    if (dbUsers.length !== cleanUsernames.length) {
-      const foundNames = dbUsers.map((u) => u.username);
-      const missingNames = cleanUsernames.filter((n) => !foundNames.includes(n));
+    if (dbUsers.length !== cleanShareCodes.length) {
+      const foundCodes = dbUsers.map((u) => u.shareCode);
+      const missingCodes = cleanShareCodes.filter((c) => !foundCodes.includes(c));
       return NextResponse.json(
-        { error: `找不到以下使用者帳號: ${missingNames.join(', ')}。請確認帳號是否輸入正確。` },
+        { error: `找不到以下分享碼的用戶: ${missingCodes.join(', ')}。請確認分享碼是否輸入正確。` },
         { status: 404 }
       );
     }
@@ -66,14 +66,14 @@ export async function POST(request: Request) {
     }> = {};
 
     allSelections.forEach((sel) => {
-      const username = dbUsers.find((u) => u.id === sel.userId)?.username || '';
+      const nickname = dbUsers.find((u) => u.id === sel.userId)?.nickname || '';
       if (!songSelectionMap[sel.songId]) {
         songSelectionMap[sel.songId] = {
           song: sel.song,
           ratings: {},
         };
       }
-      songSelectionMap[sel.songId].ratings[username] = sel.familiarity;
+      songSelectionMap[sel.songId].ratings[nickname] = sel.familiarity;
     });
 
     // 4. 過濾出所有使用者均有標記的歌曲 (ratings 的 Key 數量等於 userIds 數量)
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       }));
 
     return NextResponse.json({
-      users: cleanUsernames,
+      users: dbUsers.map((u) => u.nickname),
       songs: intersectedSongs,
     });
   } catch (error: any) {

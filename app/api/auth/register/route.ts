@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export async function POST(request: Request) {
   try {
@@ -35,15 +36,24 @@ export async function POST(request: Request) {
     // 雜湊密碼
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // 產生分享識別碼（以 username 與當下時間進行 SHA-256 雜湊）
+    const shareCode = crypto
+      .createHash('sha256')
+      .update(username + Date.now().toString())
+      .digest('hex')
+      .substring(0, 16);
+
     const newUser = await prisma.user.create({
       data: {
         username,
         password: hashedPassword,
+        nickname: username,
+        shareCode,
       }
     });
 
     return NextResponse.json(
-      { id: newUser.id, username: newUser.username },
+      { id: newUser.id, username: newUser.username, nickname: newUser.nickname, shareCode: newUser.shareCode },
       { status: 201 }
     );
   } catch (error: any) {

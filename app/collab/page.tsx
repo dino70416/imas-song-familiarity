@@ -16,7 +16,7 @@ interface CollabSong {
 }
 
 export default function CollaborationPlaylistPage() {
-  const [usernamesInput, setUsernamesInput] = useState('');
+  const [shareCodesInput, setShareCodesInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{
@@ -29,14 +29,14 @@ export default function CollaborationPlaylistPage() {
     setError('');
     setResult(null);
 
-    // 依逗號或空白分開，並去重
-    const usernames = usernamesInput
+    // 依逗號、分行隔開，並去重
+    const shareCodes = shareCodesInput
       .split(/[,，\n]/)
-      .map((u) => u.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
 
-    if (usernames.length < 2) {
-      setError('請輸入至少兩個使用者的帳號名稱。');
+    if (shareCodes.length < 2) {
+      setError('請輸入至少兩個使用者的分享識別碼。');
       return;
     }
 
@@ -46,7 +46,7 @@ export default function CollaborationPlaylistPage() {
       const res = await fetch('/api/collab', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usernames }),
+        body: JSON.stringify({ shareCodes }),
       });
 
       const data = await res.json();
@@ -93,20 +93,20 @@ export default function CollaborationPlaylistPage() {
             共同歌單交集加總
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '20px' }}>
-            輸入多個使用者的帳號，系統將找出所有人都「會唱、常聽、聽過或不太記得」的交集歌曲，方便在線下 Live KTV 或聚會中作為選歌參考！
+            輸入多個使用者的<b>分享識別碼 (已雜湊保護)</b>，系統將找出所有人都「會唱、常聽、聽過或不太記得」的交集歌曲，方便在線下 Live KTV 或聚會中作為選歌參考！
           </p>
 
           <form onSubmit={handleCompare} className="card-el" style={{ padding: '20px' }}>
             <div className="form-group" style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                使用者帳號 (以半形或全形逗號隔開)
+                使用者分享識別碼 (以半形或全形逗號或分行隔開)
               </label>
               <textarea
                 className="form-input"
                 rows={3}
-                placeholder="例如: haruka, chihaya, miki"
-                value={usernamesInput}
-                onChange={(e) => setUsernamesInput(e.target.value)}
+                placeholder="例如: a1b2c3d4e5f6, 9f8e7d6c5b4a"
+                value={shareCodesInput}
+                onChange={(e) => setShareCodesInput(e.target.value)}
                 style={{ resize: 'vertical', fontFamily: 'var(--font-sans)', fontSize: '14px' }}
                 required
               />
@@ -125,7 +125,7 @@ export default function CollaborationPlaylistPage() {
         {result && (
           <div>
             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-              比對結果: {result.users.map((u) => `@${u}`).join(' ∩ ')}
+              比對結果: {result.users.map((u) => `${u}`).join(' ∩ ')}
               <span style={{ marginLeft: '12px', fontSize: '14px', color: 'var(--accent-color)' }}>
                 共計 {result.songs.length} 首共同歌曲
               </span>
@@ -171,7 +171,7 @@ export default function CollaborationPlaylistPage() {
                           const rating = song.ratings[user];
                           return (
                             <div key={user} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>@{user}</span>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user}</span>
                               <span className={`familiarity-btn ${familiarityStates[rating]} active`} style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default' }}>
                                 {familiarityLabels[rating]}
                               </span>

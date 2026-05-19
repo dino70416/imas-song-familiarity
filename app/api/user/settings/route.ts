@@ -11,29 +11,33 @@ export async function POST(request: Request) {
     }
 
     const userId = session.user.id;
-    const { nickname, themeColor } = await request.json();
+    const { nickname, themeColor, isPublic } = await request.json();
 
-    if (!nickname || typeof nickname !== 'string' || nickname.trim().length === 0) {
-      return NextResponse.json({ error: '暱稱格式不正確或不可為空。' }, { status: 400 });
+    if (
+      !nickname || typeof nickname !== 'string' ||
+      !themeColor || typeof themeColor !== 'string' ||
+      typeof isPublic !== 'boolean'
+    ) {
+      return NextResponse.json({ error: '請求格式不正確' }, { status: 400 });
     }
 
-    // 驗證色碼格式 (HEX 色碼)
-    const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-    if (themeColor && (!typeof themeColor === 'string' || !hexColorRegex.test(themeColor))) {
-      return NextResponse.json({ error: '主題顏色代碼格式必須為有效的 HEX 格式 (例如: #92cfbb)。' }, { status: 400 });
+    if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(themeColor)) {
+      return NextResponse.json({ error: '主題顏色格式不正確' }, { status: 400 });
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         nickname: nickname.trim(),
-        themeColor: themeColor || '#92cfbb',
+        themeColor,
+        isPublic,
       },
     });
 
     return NextResponse.json({
       nickname: updatedUser.nickname,
       themeColor: updatedUser.themeColor,
+      isPublic: updatedUser.isPublic,
     });
   } catch (error: any) {
     return NextResponse.json(

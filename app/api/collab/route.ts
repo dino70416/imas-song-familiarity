@@ -88,6 +88,8 @@ export async function POST(request: Request) {
         lyrics: item.song.lyrics,
         composer: item.song.composer,
         arranger: item.song.arranger,
+        lowestPitch: item.song.lowestPitch,
+        highestPitch: item.song.highestPitch,
         members: item.song.members.map((m: any) => ({
           name: m.member.name,
           cvName: m.member.cvName,

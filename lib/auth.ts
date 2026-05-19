@@ -37,6 +37,7 @@ export const authOptions: AuthOptions = {
           nickname: user.nickname,
           shareCode: user.shareCode,
           themeColor: user.themeColor,
+          isPublic: user.isPublic,
         };
       }
     })
@@ -49,10 +50,12 @@ export const authOptions: AuthOptions = {
         token.nickname = (user as any).nickname;
         token.shareCode = (user as any).shareCode;
         token.themeColor = (user as any).themeColor;
+        token.isPublic = (user as any).isPublic;
       }
       if (trigger === 'update' && session) {
         if (session.nickname !== undefined) token.nickname = session.nickname;
         if (session.themeColor !== undefined) token.themeColor = session.themeColor;
+        if (session.isPublic !== undefined) token.isPublic = session.isPublic;
       }
       return token;
     },
@@ -63,6 +66,7 @@ export const authOptions: AuthOptions = {
         session.user.nickname = token.nickname as string;
         session.user.shareCode = token.shareCode as string;
         session.user.themeColor = token.themeColor as string;
+        session.user.isPublic = token.isPublic as boolean;
       }
       return session;
     }

@@ -21,16 +21,18 @@ model User {
 }
 
 model Song {
-  id         String          @id @default(uuid())
-  slug       String          @unique // brand/id，例如 "ml/12087"
-  title      String
-  brand      String
-  musicType  String
-  lyrics     String?
-  composer   String?
-  arranger   String?
-  members    SongMember[]
-  selections UserSelection[]
+  id           String          @id @default(uuid())
+  slug         String          @unique // brand/id，例如 "ml/12087"
+  title        String
+  brand        String
+  musicType    String
+  lyrics       String?
+  composer     String?
+  arranger     String?
+  lowestPitch  String?
+  highestPitch String?
+  members      SongMember[]
+  selections   UserSelection[]
 
   @@index([brand])
 }

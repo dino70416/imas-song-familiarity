@@ -26,6 +26,8 @@ export async function GET() {
       lyrics: song.lyrics,
       composer: song.composer,
       arranger: song.arranger,
+      lowestPitch: song.lowestPitch,
+      highestPitch: song.highestPitch,
       members: song.members.map((m) => ({
         name: m.member.name,
         cvName: m.member.cvName,

@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
+import MemberToggle from '@/components/MemberToggle';
+import { buildThemeVars, getBrandColor, getBrandDisplayName, getAccentTextColor } from '@/lib/themeUtils';
+import { BrandIcon } from '@/components/BrandIcon';
 
 interface Song {
   id: string;
@@ -12,8 +15,73 @@ interface Song {
   lyrics: string | null;
   composer: string | null;
   arranger: string | null;
+  lowestPitch: string | null;
+  highestPitch: string | null;
   members: Array<{ name: string; cvName: string | null }>;
 }
+
+const pitchHierarchy = [
+  { jp: "hihiG♯", en: "G#6", order: 60 },
+  { jp: "hihiG", en: "G6", order: 59 },
+  { jp: "hihiF♯", en: "F#6", order: 58 },
+  { jp: "hihiF", en: "F6", order: 57 },
+  { jp: "hihiE", en: "E6", order: 56 },
+  { jp: "hihiD♯", en: "D#6", order: 55 },
+  { jp: "hihiD", en: "D6", order: 54 },
+  { jp: "hihiC♯", en: "C#6", order: 53 },
+  { jp: "hihiC", en: "C6", order: 52 },
+  { jp: "hihiB", en: "B5", order: 51 },
+  { jp: "hihiA♯", en: "A#5", order: 50 },
+  { jp: "hihiA", en: "A5", order: 49 },
+  { jp: "hiG♯", en: "G#5", order: 48 },
+  { jp: "hiG", en: "G5", order: 47 },
+  { jp: "hiF♯", en: "F#5", order: 46 },
+  { jp: "hiF", en: "F5", order: 45 },
+  { jp: "hiE", en: "E5", order: 44 },
+  { jp: "hiD♯", en: "D#5", order: 43 },
+  { jp: "hiD", en: "D5", order: 42 },
+  { jp: "hiC♯", en: "C#5", order: 41 },
+  { jp: "hiC", en: "C5", order: 40 },
+  { jp: "hiB", en: "B4", order: 39 },
+  { jp: "hiA♯", en: "A#4", order: 38 },
+  { jp: "hiA", en: "A4", order: 37 },
+  { jp: "mid2G♯", en: "G#4", order: 36 },
+  { jp: "mid2G", en: "G4", order: 35 },
+  { jp: "mid2F♯", en: "F#4", order: 34 },
+  { jp: "mid2F", en: "F4", order: 33 },
+  { jp: "mid2E", en: "E4", order: 32 },
+  { jp: "mid2D♯", en: "D#4", order: 31 },
+  { jp: "mid2D", en: "D4", order: 30 },
+  { jp: "mid2C♯", en: "C#4", order: 29 },
+  { jp: "mid2C", en: "C4", order: 28 },
+  { jp: "mid2B", en: "B3", order: 27 },
+  { jp: "mid2A♯", en: "A#3", order: 26 },
+  { jp: "mid2A", en: "A3", order: 25 },
+  { jp: "mid1G♯", en: "G#3", order: 24 },
+  { jp: "mid1G", en: "G3", order: 23 },
+  { jp: "mid1F♯", en: "F#3", order: 22 },
+  { jp: "mid1F", en: "F3", order: 21 },
+  { jp: "mid1E", en: "E3", order: 20 },
+  { jp: "mid1D♯", en: "D#3", order: 19 },
+  { jp: "mid1D", en: "D3", order: 18 },
+  { jp: "mid1C♯", en: "C#3", order: 17 },
+  { jp: "mid1C", en: "C3", order: 16 },
+  { jp: "mid1B", en: "B2", order: 15 },
+  { jp: "mid1A♯", en: "A#2", order: 14 },
+  { jp: "mid1A", en: "A2", order: 13 },
+  { jp: "lowG♯", en: "G#2", order: 12 },
+  { jp: "lowG", en: "G2", order: 11 },
+  { jp: "lowF♯", en: "F#2", order: 10 },
+  { jp: "lowF", en: "F2", order: 9 },
+  { jp: "lowE", en: "E2", order: 8 },
+  { jp: "lowD♯", en: "D#2", order: 7 },
+  { jp: "lowD", en: "D2", order: 6 },
+  { jp: "lowC♯", en: "C#2", order: 5 },
+  { jp: "lowC", en: "C2", order: 4 },
+  { jp: "lowB", en: "B1", order: 3 },
+  { jp: "lowA♯", en: "A#1", order: 2 },
+  { jp: "lowA", en: "A1", order: 1 }
+];
 
 export default function SongFamiliarityHub() {
   const { data: session, status, update } = useSession();
@@ -24,11 +92,14 @@ export default function SongFamiliarityHub() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('music_ml'); // 預設選擇第一項 (Million Live)
   const [selectedType, setSelectedType] = useState('all');
+  const [showPitchModal, setShowPitchModal] = useState(false);
 
   // 熟悉度狀態對照表 (songId -> familiarity)
   const [selections, setSelections] = useState<Record<string, number>>({});
   // 未儲存變更隊列 (songId -> familiarity)
   const [unsavedChanges, setUnsavedChanges] = useState<Record<string, number>>({});
+
+
 
   // 燈箱控制
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -40,6 +111,17 @@ export default function SongFamiliarityHub() {
   const [passwordInput, setPasswordInput] = useState('');
   const [nicknameInput, setNicknameInput] = useState('');
   const [themeColorInput, setThemeColorInput] = useState('#92cfbb');
+  const [isPublicInput, setIsPublicInput] = useState(false);
+  const [idolColors, setIdolColors] = useState<Array<{name: string, color: string}>>([]);
+  const [colorSearchQuery, setColorSearchQuery] = useState('');
+  const [showColorSuggestions, setShowColorSuggestions] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/colors')
+      .then(res => res.json())
+      .then(data => setIdolColors(data))
+      .catch(() => {});
+  }, []);
 
   const [authError, setAuthError] = useState('');
   const [authMessage, setAuthMessage] = useState('');
@@ -235,7 +317,7 @@ export default function SongFamiliarityHub() {
       const res = await fetch('/api/user/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname: nicknameInput, themeColor: themeColorInput }),
+        body: JSON.stringify({ nickname: nicknameInput, themeColor: themeColorInput, isPublic: isPublicInput }),
       });
 
       const data = await res.json();
@@ -247,6 +329,7 @@ export default function SongFamiliarityHub() {
         await update({
           nickname: nicknameInput,
           themeColor: themeColorInput,
+          isPublic: isPublicInput,
         });
         setTimeout(() => {
           setShowSettingsModal(false);
@@ -263,6 +346,8 @@ export default function SongFamiliarityHub() {
     if (session?.user) {
       setNicknameInput(session.user.nickname || session.user.username);
       setThemeColorInput(session.user.themeColor || '#92cfbb');
+      setIsPublicInput(session.user.isPublic || false);
+      setColorSearchQuery('');
       setSettingsError('');
       setSettingsSuccess('');
       setShowSettingsModal(true);
@@ -297,17 +382,12 @@ export default function SongFamiliarityHub() {
     return true;
   });
 
-  // 動態設定主題色與 Glow 變數
+  // 動態設定主題色（含所有衍生色）
   const currentThemeColor = session?.user?.themeColor || '#92cfbb';
-  const r = parseInt(currentThemeColor.slice(1, 3), 16) || 146;
-  const g = parseInt(currentThemeColor.slice(3, 5), 16) || 207;
-  const b = parseInt(currentThemeColor.slice(5, 7), 16) || 187;
-  const currentAccentGlow = `rgba(${r}, ${g}, ${b}, 0.15)`;
 
   return (
     <div style={{
-      ['--accent-color' as any]: currentThemeColor,
-      ['--accent-glow' as any]: currentAccentGlow,
+      ...(buildThemeVars(currentThemeColor) as any),
       display: 'flex',
       flexDirection: 'column',
       minHeight: '100vh',
@@ -316,6 +396,9 @@ export default function SongFamiliarityHub() {
         <div className="container header-content">
           <h1>IMAS Song Familiarity Hub</h1>
           <div className="auth-nav">
+            <button onClick={() => setShowPitchModal(true)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+              音域對照表
+            </button>
             {status === 'authenticated' && session?.user ? (
               <>
                 <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
@@ -330,7 +413,7 @@ export default function SongFamiliarityHub() {
                 <a href="/collab" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
                   共同歌單
                 </a>
-                <button onClick={() => signOut()} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                <button onClick={() => signOut({ callbackUrl: window.location.origin })} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }}>
                   登出
                 </button>
               </>
@@ -363,20 +446,27 @@ export default function SongFamiliarityHub() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <div style={{ position: 'absolute', left: '12px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+              <BrandIcon brand={selectedBrand} className="brand-select-icon" />
+            </div>
             <select
               className="form-input"
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', paddingLeft: '38px' }}
             >
-              <option value="music_ml">Million Live (ML)</option>
-              <option value="music_cg">Cinderella Girls (CG)</option>
-              <option value="music_shiny">Shiny Colors (Shiny)</option>
-              <option value="music_765">765 Pro (AS)</option>
-              <option value="music_sidem">SideM</option>
-              <option value="music_gakuen">Gakuen Idolmaster (Gakuen)</option>
-              <option value="all">所有分類 (ALL)</option>
+              <option value="music_ml">{getBrandDisplayName('music_ml')}</option>
+              <option value="music_cg">{getBrandDisplayName('music_cg')}</option>
+              <option value="music_shiny">{getBrandDisplayName('music_shiny')}</option>
+              <option value="music_as">{getBrandDisplayName('music_as')}</option>
+              <option value="music_876">{getBrandDisplayName('music_876')}</option>
+              <option value="music_sidem">{getBrandDisplayName('music_sidem')}</option>
+              <option value="music_gakuen">{getBrandDisplayName('music_gakuen')}</option>
+              <option value="music_godo">{getBrandDisplayName('music_godo')}</option>
+              <option value="music_cover">{getBrandDisplayName('music_cover')}</option>
+              <option value="music_remix">{getBrandDisplayName('music_remix')}</option>
+              <option value="all">{getBrandDisplayName('all')}</option>
             </select>
           </div>
           <div>
@@ -392,6 +482,18 @@ export default function SongFamiliarityHub() {
             </select>
           </div>
         </section>
+
+        {/* 熟悉度定義說明 */}
+        <div className="familiarity-definitions-card">
+          <h3 className="definitions-title">💡 熟悉度定義說明</h3>
+          <div className="definitions-grid">
+            <div className="def-item"><span className="def-badge state-1">會唱</span>有詞的狀況下可以一起唱</div>
+            <div className="def-item"><span className="def-badge state-2">常聽</span>熟悉到會唱，但有些地方會 miss，或者常常聽但沒有想唱</div>
+            <div className="def-item"><span className="def-badge state-3">有聽過</span>看到歌名或聽到前奏能想得起一點旋律 & 可以哼</div>
+            <div className="def-item"><span className="def-badge state-4">不太記得</span>確定有聽過，但不記得內容</div>
+            <div className="def-item"><span className="def-badge state-0">不記得</span>連歌名都不記得，或者確定沒聽過</div>
+          </div>
+        </div>
 
         {/* 歌曲評估清單 */}
         {loading ? (
@@ -413,12 +515,25 @@ export default function SongFamiliarityHub() {
                   <div className="song-info">
                     <div className="song-title-row">
                       <span className="song-title">{song.title}</span>
-                      <span className="song-badge badge-brand">{brandClean}</span>
+                      <span 
+                        className="song-badge badge-brand"
+                        style={{ 
+                          backgroundColor: getBrandColor(song.brand),
+                          color: getAccentTextColor(getBrandColor(song.brand))
+                        }}
+                      >
+                        {getBrandDisplayName(song.brand)}
+                      </span>
                       {song.musicType.includes('solo') && (
                         <span className="song-badge badge-type">SOLO</span>
                       )}
                       {song.musicType.includes('unit') && (
                         <span className="song-badge badge-type">UNIT</span>
+                      )}
+                      {(song.lowestPitch || song.highestPitch) && (
+                        <span className="song-badge badge-pitch">
+                          音域: {song.lowestPitch || '--'} ~ {song.highestPitch || '--'}
+                        </span>
                       )}
                     </div>
                     <div className="song-meta">
@@ -426,11 +541,7 @@ export default function SongFamiliarityHub() {
                       {song.composer && <span>/ 作曲: {song.composer} </span>}
                       {song.arranger && <span>/ 編曲: {song.arranger}</span>}
                     </div>
-                    {song.members.length > 0 && (
-                      <div className="song-members">
-                        演唱成員: {song.members.map((m) => `${m.name}${m.cvName ? ` (${m.cvName})` : ''}`).join(', ')}
-                      </div>
-                    )}
+                    <MemberToggle members={song.members} />
                   </div>
 
                   <div className="familiarity-options">
@@ -546,7 +657,7 @@ export default function SongFamiliarityHub() {
                 <input
                   type="text"
                   className="form-input"
-                  required
+                  placeholder="留空將使用帳號"
                   value={nicknameInput}
                   onChange={(e) => setNicknameInput(e.target.value)}
                 />
@@ -607,7 +718,7 @@ export default function SongFamiliarityHub() {
                   <input
                     type="color"
                     className="form-input"
-                    style={{ width: '60px', height: '40px', padding: '2px', cursor: 'pointer' }}
+                    style={{ width: '60px', height: '40px', padding: '2px', cursor: 'pointer', flexShrink: 0 }}
                     value={themeColorInput}
                     onChange={(e) => setThemeColorInput(e.target.value)}
                   />
@@ -619,8 +730,55 @@ export default function SongFamiliarityHub() {
                     placeholder="#92cfbb"
                     pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
                     required
+                    style={{ width: '100px', flexShrink: 0 }}
                   />
+                  <div style={{ position: 'relative', flexGrow: 1 }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="或搜尋擔當偶像 (如: 天海春香)..."
+                      value={colorSearchQuery}
+                      onChange={(e) => {
+                        setColorSearchQuery(e.target.value);
+                        setShowColorSuggestions(true);
+                      }}
+                      onFocus={() => setShowColorSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowColorSuggestions(false), 200)}
+                    />
+                    {showColorSuggestions && colorSearchQuery && (
+                      <div className="autocomplete-dropdown">
+                        {idolColors
+                          .filter(c => c.name.toLowerCase().includes(colorSearchQuery.toLowerCase()))
+                          .slice(0, 8)
+                          .map(c => (
+                            <div 
+                              key={c.name} 
+                              className="autocomplete-item"
+                              onClick={() => {
+                                setThemeColorInput(c.color);
+                                setColorSearchQuery(c.name);
+                                setShowColorSuggestions(false);
+                              }}
+                            >
+                              <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: c.color, marginRight: '8px', borderRadius: '50%' }}></span>
+                              {c.name} ({c.color})
+                            </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+              </div>
+              <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={isPublicInput}
+                    onChange={(e) => setIsPublicInput(e.target.checked)}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span>公開我的歌單（允許其他人在歌曲統計中看到我）</span>
+                </label>
               </div>
               <div className="form-group">
                 <label>個人公開歌單連結 (識別碼已雜湊保護)</label>
@@ -665,6 +823,43 @@ export default function SongFamiliarityHub() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* 音域對照表彈出視窗 */}
+      {showPitchModal && (
+        <div className="modal-overlay" onClick={() => setShowPitchModal(false)}>
+          <div className="modal-content pitch-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px' }}>音域對照表 (由高至低)</h2>
+              <button 
+                onClick={() => setShowPitchModal(false)} 
+                className="btn btn-secondary" 
+                style={{ padding: '4px 10px', fontSize: '12px' }}
+              >
+                關閉
+              </button>
+            </div>
+            <div className="pitch-table-container">
+              <table className="pitch-table">
+                <thead>
+                  <tr>
+                    <th>日文音名</th>
+                    <th>科學音名</th>
+                    <th>音高順序</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pitchHierarchy.map((p) => (
+                    <tr key={p.jp}>
+                      <td style={{ fontWeight: '500' }}>{p.jp}</td>
+                      <td>{p.en}</td>
+                      <td style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>{p.order}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

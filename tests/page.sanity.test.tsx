@@ -10,6 +10,13 @@ vi.mock('next-auth/react', () => ({
   signOut: vi.fn(),
 }));
 
+// 模擬 global.fetch 以避免 JSDOM 解析相對路徑失敗
+global.fetch = vi.fn().mockImplementation(() =>
+  Promise.resolve({
+    json: () => Promise.resolve([]),
+  })
+);
+
 test('Home page renders title and filters correctly', () => {
   render(<SongFamiliarityHub />);
   expect(screen.getByText('IMAS Song Familiarity Hub')).toBeDefined();

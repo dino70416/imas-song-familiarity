@@ -7,19 +7,23 @@ export async function POST(request: Request) {
   try {
     const { username, password, nickname } = await request.json();
 
-    if (!username || !password || !nickname || typeof username !== 'string' || typeof password !== 'string' || typeof nickname !== 'string') {
+    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
       return NextResponse.json(
-        { error: '帳號、密碼與暱稱為必填，且必須為字串格式。' },
+        { error: '帳號與密碼為必填，且必須為字串格式。' },
         { status: 400 }
       );
     }
 
-    if (username.length < 3 || password.length < 6 || nickname.trim().length === 0) {
+    if (username.length < 3 || password.length < 6) {
       return NextResponse.json(
-        { error: '帳號長度至少需 3 個字元，密碼長度至少需 6 個字元，暱稱不可為空。' },
+        { error: '帳號長度至少需 3 個字元，密碼長度至少需 6 個字元。' },
         { status: 400 }
       );
     }
+
+    const finalNickname = (nickname && typeof nickname === 'string' && nickname.trim().length > 0)
+      ? nickname.trim()
+      : username;
 
     // 檢查使用者是否已存在
     const existingUser = await prisma.user.findUnique({
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
       data: {
         username,
         password: hashedPassword,
-        nickname: nickname.trim(),
+        nickname: finalNickname,
         shareCode,
       }
     });

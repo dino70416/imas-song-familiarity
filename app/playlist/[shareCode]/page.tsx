@@ -1,6 +1,8 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { buildThemeVars, getBrandColor, getBrandDisplayName, getAccentTextColor } from '@/lib/themeUtils';
+import MemberToggle from '@/components/MemberToggle';
 
 interface PageProps {
   params: Promise<{ shareCode: string }>;
@@ -54,17 +56,12 @@ export default async function PublicPlaylistPage({ params }: PageProps) {
     4: 'state-4',
   };
 
-  // 動態算出主題色與 Glow 變數
+  // 動態設定主題色（含所有衍生色）
   const themeColor = dbUser.themeColor || '#92cfbb';
-  const r = parseInt(themeColor.slice(1, 3), 16);
-  const g = parseInt(themeColor.slice(3, 5), 16);
-  const b = parseInt(themeColor.slice(5, 7), 16);
-  const accentGlow = `rgba(${r}, ${g}, ${b}, 0.15)`;
 
   return (
     <div style={{
-      ['--accent-color' as any]: themeColor,
-      ['--accent-glow' as any]: accentGlow,
+      ...(buildThemeVars(themeColor) as any),
       display: 'flex',
       flexDirection: 'column',
       minHeight: '100vh'
@@ -103,12 +100,25 @@ export default async function PublicPlaylistPage({ params }: PageProps) {
                   <div className="song-info">
                     <div className="song-title-row">
                       <span className="song-title">{song.title}</span>
-                      <span className="song-badge badge-brand">{brandClean}</span>
+                      <span 
+                        className="song-badge badge-brand"
+                        style={{ 
+                          backgroundColor: getBrandColor(song.brand),
+                          color: getAccentTextColor(getBrandColor(song.brand))
+                        }}
+                      >
+                        {getBrandDisplayName(song.brand)}
+                      </span>
                       {song.musicType.includes('solo') && (
                         <span className="song-badge badge-type">SOLO</span>
                       )}
                       {song.musicType.includes('unit') && (
                         <span className="song-badge badge-type">UNIT</span>
+                      )}
+                      {(song.lowestPitch || song.highestPitch) && (
+                        <span className="song-badge badge-pitch">
+                          音域: {song.lowestPitch || '--'} ~ {song.highestPitch || '--'}
+                        </span>
                       )}
                     </div>
                     <div className="song-meta">
@@ -116,11 +126,7 @@ export default async function PublicPlaylistPage({ params }: PageProps) {
                       {song.composer && <span>/ 作曲: {song.composer} </span>}
                       {song.arranger && <span>/ 編曲: {song.arranger}</span>}
                     </div>
-                    {song.members.length > 0 && (
-                      <div className="song-members">
-                        演唱成員: {song.members.map((m) => `${m.member.name}${m.member.cvName ? ` (${m.member.cvName})` : ''}`).join(', ')}
-                      </div>
-                    )}
+                    <MemberToggle members={song.members.map((m) => ({ name: m.member.name, cvName: m.member.cvName }))} />
                   </div>
 
                   <div>

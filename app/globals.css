@@ -3,40 +3,45 @@
 :root {
   --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   
-  /* Color Palette - Minimalist / Default Mint Green */
-  --bg-base: #121214;
-  --bg-surface: #1a1a1e;
-  --bg-surface-hover: #222227;
-  --border-color: #2b2b30;
-  --border-color-hover: #3b3b42;
+  /* Color Palette - Minimalist Light Theme with #92cfbb */
+  --bg-base: #f5f7f8;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f9fbfb;
+  --border-color: #e2e8f0;
+  --border-color-hover: #cbd5e1;
   
-  --text-primary: #f0f2f5;
-  --text-secondary: #9a9fa8;
-  --text-muted: #686e7a;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
 
-  --accent-color: #92cfbb; /* Mint Green */
-  --accent-glow: rgba(146, 207, 187, 0.15);
+  --accent-color: #92cfbb; /* Mint Green — 實際值由 JS buildThemeVars() 注入 */
+  --accent-on-color: #1e293b;
+  --accent-glow: rgba(146, 207, 187, 0.25);
+  --accent-glow-soft: rgba(146, 207, 187, 0.12);
+  --accent-glow-medium: rgba(146, 207, 187, 0.35);
+  --accent-hover: #7db09f;
+  --accent-text-dark: #5a8070;
 
   /* Familiarity States Colors (Modern Curated Glows) */
-  --color-state-1: #10b981; /* 會唱: Emeral Emerald */
-  --color-state-1-glow: rgba(16, 185, 129, 0.15);
+  --color-state-1: #0d9488; /* 會唱 (darker teal for readability in light mode) */
+  --color-state-1-glow: rgba(13, 148, 136, 0.12);
   
-  --color-state-2: #06b6d4; /* 常聽/只聽: Cyan */
-  --color-state-2-glow: rgba(6, 182, 212, 0.15);
+  --color-state-2: #0891b2; /* 常聽/只聽 */
+  --color-state-2-glow: rgba(8, 145, 178, 0.12);
   
-  --color-state-3: #8b5cf6; /* 有聽過: Violet */
-  --color-state-3-glow: rgba(139, 92, 246, 0.15);
+  --color-state-3: #6d28d9; /* 有聽過 */
+  --color-state-3-glow: rgba(109, 40, 217, 0.12);
   
-  --color-state-4: #f59e0b; /* 不太記得: Amber */
-  --color-state-4-glow: rgba(245, 158, 11, 0.15);
+  --color-state-4: #d97706; /* 不太記得 */
+  --color-state-4-glow: rgba(217, 119, 6, 0.12);
   
-  --color-state-0: #6b7280; /* 不記得: Muted Gray */
-  --color-state-0-glow: rgba(107, 114, 128, 0.05);
+  --color-state-0: #64748b; /* 不記得 */
+  --color-state-0-glow: rgba(100, 116, 139, 0.06);
 
   /* Shadows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
   
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -104,7 +109,7 @@ a:hover {
 
 /* Glassmorphism Header */
 header {
-  background: rgba(11, 13, 19, 0.85);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
@@ -124,7 +129,7 @@ header h1 {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  background: linear-gradient(135deg, #a5b4fc, var(--accent-color));
+  background: linear-gradient(135deg, var(--accent-text-dark), var(--accent-color));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -151,7 +156,7 @@ header h1 {
 
 /* Inputs and Forms */
 .form-input {
-  background-color: rgba(11, 13, 19, 0.6);
+  background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -185,20 +190,24 @@ header h1 {
 
 .btn-primary {
   background-color: var(--accent-color);
-  color: #fff;
+  color: var(--accent-on-color);
+  font-weight: 600;
 }
 .btn-primary:hover {
-  background-color: #5558e6;
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+  background-color: var(--accent-hover);
+  color: var(--accent-on-color);
+  box-shadow: 0 0 16px var(--accent-glow);
 }
 
 .btn-secondary {
-  background-color: rgba(99, 102, 241, 0.1);
-  color: #a5b4fc;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background-color: var(--accent-glow-soft);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-glow-medium);
 }
 .btn-secondary:hover {
-  background-color: rgba(99, 102, 241, 0.2);
+  background-color: var(--accent-glow-medium);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 
 .btn-danger {
@@ -216,13 +225,13 @@ header h1 {
   right: 32px;
   z-index: 1000;
   background: var(--accent-color);
-  color: white;
+  color: var(--accent-on-color);
   border: none;
   border-radius: var(--radius-full);
   padding: 16px 28px;
   font-size: 15px;
   font-weight: 600;
-  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 10px 30px var(--accent-glow);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -232,8 +241,9 @@ header h1 {
 
 .floating-save-btn:hover {
   transform: scale(1.05) translateY(-2px);
-  background: #5558e6;
-  box-shadow: 0 15px 35px rgba(99, 102, 241, 0.7);
+  background: var(--accent-hover);
+  color: var(--accent-on-color);
+  box-shadow: 0 15px 35px var(--accent-glow-medium);
 }
 
 .floating-save-btn:active {
@@ -241,7 +251,7 @@ header h1 {
 }
 
 .floating-save-btn .badge {
-  background: white;
+  background: var(--accent-on-color);
   color: var(--accent-color);
   border-radius: var(--radius-full);
   padding: 2px 8px;
@@ -334,12 +344,12 @@ header h1 {
 }
 
 .badge-brand {
-  background-color: rgba(99, 102, 241, 0.15);
-  color: #a5b4fc;
+  background-color: var(--accent-glow-soft);
+  color: var(--accent-text-dark);
 }
 
 .badge-type {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(0, 0, 0, 0.04);
   color: var(--text-secondary);
 }
 
@@ -351,6 +361,20 @@ header h1 {
 .song-members {
   font-size: 12px;
   color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.song-members.expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
 }
 
 /* Familiarity Selector Controls */
@@ -361,7 +385,7 @@ header h1 {
 }
 
 .familiarity-btn {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   padding: 8px 16px;
@@ -415,7 +439,8 @@ header h1 {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -457,3 +482,155 @@ header h1 {
   gap: 12px;
   margin-top: 24px;
 }
+
+/* Autocomplete Dropdown */
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.autocomplete-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: var(--bg-surface-hover);
+}
+
+/* Familiarity Definitions Card */
+.familiarity-definitions-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.definitions-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.definitions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.def-item {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.def-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  align-self: flex-start;
+}
+
+.def-badge.state-1 {
+  background-color: var(--color-state-1-glow);
+  color: var(--color-state-1);
+  border: 1px solid var(--color-state-1);
+}
+.def-badge.state-2 {
+  background-color: var(--color-state-2-glow);
+  color: var(--color-state-2);
+  border: 1px solid var(--color-state-2);
+}
+.def-badge.state-3 {
+  background-color: var(--color-state-3-glow);
+  color: var(--color-state-3);
+  border: 1px solid var(--color-state-3);
+}
+.def-badge.state-4 {
+  background-color: var(--color-state-4-glow);
+  color: var(--color-state-4);
+  border: 1px solid var(--color-state-4);
+}
+.def-badge.state-0 {
+  background-color: var(--color-state-0-glow);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+/* Pitch range badge */
+.badge-pitch {
+  background-color: rgba(244, 63, 94, 0.12);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.2);
+}
+
+/* Pitch Modal Specifics */
+.pitch-modal {
+  max-width: 500px !important;
+}
+
+.pitch-table-container {
+  max-height: 450px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.pitch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.pitch-table th {
+  background-color: var(--bg-surface);
+  padding: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--border-color);
+  opacity: 1;
+  z-index: 1;
+}
+
+.pitch-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.pitch-table tbody tr:hover {
+  background-color: var(--bg-surface-hover);
+}
+

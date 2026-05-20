@@ -515,7 +515,7 @@ export default function SongFamiliarityHub() {
   const selectedUnitSet = useMemo(() => new Set(selectedUnits), [selectedUnits]);
   const selectedBrandSet = useMemo(() => new Set(selectedBrands), [selectedBrands]);
 
-  const filteredSongs = songs.filter((song) => {
+  const filteredSongs = useMemo(() => songs.filter((song) => {
     // Brand：任一匹配（hasQuery 時鬆綁）
     if (!hasQuery && selectedBrandSet.size > 0 && !selectedBrandSet.has(song.brand)) {
       return false;
@@ -558,7 +558,52 @@ export default function SongFamiliarityHub() {
     }
 
     return true;
-  });
+  }), [
+    songs,
+    hasQuery,
+    searchQuery,
+    selectedBrandSet,
+    selectedTypes,
+    selectedIdolSet,
+    selectedUnitSet,
+  ]);
+
+  // 漸進式載入：每次只渲染 PAGE_SIZE 首，滾動到底再加下一頁。
+  // 切篩選時重置為第一頁，避免遺留先前的 visibleCount。
+  const PAGE_SIZE = 30;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [
+    searchQuery,
+    selectedBrands,
+    selectedTypes,
+    selectedIdols,
+    selectedUnits,
+  ]);
+
+  const visibleSongs = useMemo(
+    () => filteredSongs.slice(0, visibleCount),
+    [filteredSongs, visibleCount],
+  );
+
+  // 哨兵：滾到 sentinel 就再撥 PAGE_SIZE 出來
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (visibleCount >= filteredSongs.length) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, filteredSongs.length));
+        }
+      },
+      { rootMargin: '400px' }, // 距視口 400px 就觸發，體感較順
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [visibleCount, filteredSongs.length]);
 
   function clearAllFilters() {
     setSearchQuery('');
@@ -709,6 +754,27 @@ export default function SongFamiliarityHub() {
           <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
             正在載入 IMAS 歌曲庫，請稍候...
           </div>
+        ) : !anyFilterActive ? (
+          // 沒有任何篩選 → 顯示空狀態，不渲染 2560 張卡片
+          <div
+            className="empty-state-card"
+            data-testid="empty-state"
+            style={{
+              textAlign: 'center',
+              padding: '60px 24px',
+              border: '1px dashed var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--bg-surface)',
+            }}
+          >
+            <div style={{ fontSize: '15px', marginBottom: '8px' }}>
+              請先選擇至少一個篩選條件，或輸入關鍵字搜尋
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              共 {songs.length} 首歌曲。為了效能，僅在套用篩選後才顯示。
+            </div>
+          </div>
         ) : (
           <section className="songs-grid">
             <div
@@ -722,22 +788,28 @@ export default function SongFamiliarityHub() {
               }}
             >
               <span data-testid="result-count">
-                顯示 {filteredSongs.length} 首歌曲
+                顯示 {visibleSongs.length} / {filteredSongs.length} 首歌曲
               </span>
-              {anyFilterActive && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '4px 10px', fontSize: '12px' }}
-                  onClick={clearAllFilters}
-                  data-testid="clear-all-filters"
+              {visibleCount < filteredSongs.length && (
+                <span
+                  style={{ fontSize: '12px', color: 'var(--text-muted)' }}
+                  data-testid="more-hint"
                 >
-                  清除所有篩選
-                </button>
+                  捲到底自動載入下一批
+                </span>
               )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '4px 10px', fontSize: '12px', marginLeft: 'auto' }}
+                onClick={clearAllFilters}
+                data-testid="clear-all-filters"
+              >
+                清除所有篩選
+              </button>
             </div>
-            
-            {filteredSongs.map((song) => {
+
+            {visibleSongs.map((song) => {
               const currentFamiliarity = selections[song.id] || 0;
               const brandClean = song.brand.replace('music_', '').toUpperCase();
 
@@ -810,6 +882,33 @@ export default function SongFamiliarityHub() {
                 </div>
               );
             })}
+
+            {/* 滾動哨兵：可見時自動載入下一批；沒更多就退場 */}
+            {visibleCount < filteredSongs.length ? (
+              <div
+                ref={sentinelRef}
+                data-testid="load-sentinel"
+                style={{
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                }}
+              >
+                載入中… (還有 {filteredSongs.length - visibleCount} 首)
+              </div>
+            ) : filteredSongs.length > PAGE_SIZE ? (
+              <div
+                style={{
+                  padding: '20px',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: '12px',
+                }}
+              >
+                — 已顯示全部 {filteredSongs.length} 首 —
+              </div>
+            ) : null}
           </section>
         )}
       </main>

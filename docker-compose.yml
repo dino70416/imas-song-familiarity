@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: imas-song-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: imas
+      POSTGRES_PASSWORD: imas_dev
+      POSTGRES_DB: imas_song
+    ports:
+      - "55432:5432"
+    volumes:
+      - imas_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imas -d imas_song"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  imas_postgres_data:

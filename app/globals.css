@@ -319,6 +319,11 @@ header h1 {
   }
 }
 
+/* 品牌 chip：預設(桌機)顯示完整名稱、短碼隱藏；手機 @media 內反轉
+   注意：default 必須寫在 @media(max-width:600px) 之前，否則 cascade 會反過來 */
+.brand-chip-name--full { display: inline; }
+.brand-chip-name--short { display: none; }
+
 @media (max-width: 600px) {
   /* 改成 2 欄 grid，搜尋框跨整列 — 5 欄輸入收成 3 列(search / brand idol / unit type)
      比原本 5 列(全部單欄)節省約 40% 高度 */
@@ -363,6 +368,9 @@ header h1 {
     justify-self: end;
     margin-left: 0 !important;
   }
+  /* 品牌 chip 在手機切短碼（"学園アイドル..." → "学マス"）避免文字被截 */
+  .brand-chip-name--full { display: none; }
+  .brand-chip-name--short { display: inline; }
   /* 定義卡 padding 縮一點 */
   .familiarity-definitions-card {
     padding: 14px;

@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import MemberToggle from '@/components/MemberToggle';
-import { buildThemeVars, getBrandColor, getBrandDisplayName, getAccentTextColor } from '@/lib/themeUtils';
+import { buildThemeVars, getBrandColor, getBrandDisplayName, getBrandShortName, getAccentTextColor } from '@/lib/themeUtils';
 
 
 interface CollabSong {
@@ -41,20 +41,22 @@ export default function CollaborationPlaylistPage() {
   const [songUsers, setSongUsers] = useState<Array<{nickname: string, themeColor: string, familiarity: number}>>([]);
   const [loadingSongUsers, setLoadingSongUsers] = useState(false);
 
+  // 結果上的二次篩選：依使用者 / 依熟悉度 / 依品牌
+  // 三者都空 = 不限；同一欄 OR，欄位之間 AND
+  const [includedUsers, setIncludedUsers] = useState<string[]>([]);
+  const [includedFams, setIncludedFams] = useState<number[]>([]);
+  const [includedBrands, setIncludedBrands] = useState<string[]>([]);
+
   // 主題色（跟隨登入使用者設定）
   const themeColor = session?.user?.themeColor || '#92cfbb';
 
-  // Fetch user suggestions
+  // Fetch user suggestions — 空 q 也撈（取得全部公開使用者列表，讓 focus 時就有清單可挑）
   const handleUserSearch = async (q: string) => {
     setUserSearchQuery(q);
-    if (q.trim().length === 0) {
-      setUserSuggestions([]);
-      return;
-    }
     try {
       const res = await fetch(`/api/user/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
-      setUserSuggestions(data);
+      setUserSuggestions(Array.isArray(data) ? data : []);
       setShowUserSuggestions(true);
     } catch (err) {
       console.error(err);
@@ -77,7 +79,7 @@ export default function CollaborationPlaylistPage() {
     const shareCodes = selectedUsers.map(u => u.shareCode);
 
     if (shareCodes.length < 2) {
-      setError('請選擇至少兩個使用者進行比對。');
+      setError('請選擇至少兩個使用者，才能進行比對。');
       return;
     }
 
@@ -95,6 +97,10 @@ export default function CollaborationPlaylistPage() {
         setError(data.error || '比對失敗。');
       } else {
         setResult(data);
+        // 換新的比對結果就清掉舊的二次篩選
+        setIncludedUsers([]);
+        setIncludedFams([]);
+        setIncludedBrands([]);
       }
     } catch (err) {
       setError('與伺服器連線異常，請稍後再試。');
@@ -103,19 +109,38 @@ export default function CollaborationPlaylistPage() {
     }
   }
 
-  const handleSongClick = async (song: CollabSong) => {
+  // 對 API 回來的聯集再做二次過濾（同欄 OR、欄位之間 AND）
+  const filteredSongs = useMemo(() => {
+    if (!result) return [];
+    const userSet = includedUsers.length > 0 ? new Set(includedUsers) : null;
+    const famSet = includedFams.length > 0 ? new Set(includedFams) : null;
+    const brandSet = includedBrands.length > 0 ? new Set(includedBrands) : null;
+    return result.songs.filter((s) => {
+      if (brandSet && !brandSet.has(s.brand)) return false;
+      return Object.entries(s.ratings).some(([nick, rating]) => {
+        if (userSet && !userSet.has(nick)) return false;
+        if (famSet && !famSet.has(rating as number)) return false;
+        return true;
+      });
+    });
+  }, [result, includedUsers, includedFams, includedBrands]);
+
+  // 下拉只列出當前 union 結果裡實際出現過的品牌
+  const presentBrands = useMemo(() => {
+    if (!result) return [] as string[];
+    return Array.from(new Set(result.songs.map((s) => s.brand)));
+  }, [result]);
+
+  // Modal 只列「當前比對的使用者」對這首歌的評分，不再撈全部公開使用者
+  const handleSongClick = (song: CollabSong) => {
     setSelectedSong(song);
-    setSongUsers([]);
-    setLoadingSongUsers(true);
-    try {
-      const res = await fetch(`/api/songs/${song.id}/users`);
-      const data = await res.json();
-      setSongUsers(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingSongUsers(false);
-    }
+    const list = Object.entries(song.ratings).map(([nickname, fam]) => {
+      const themeColor =
+        selectedUsers.find((u) => u.nickname === nickname)?.themeColor ?? 'var(--accent-color)';
+      return { nickname, themeColor, familiarity: fam as number };
+    });
+    setSongUsers(list);
+    setLoadingSongUsers(false);
   };
 
   const familiarityLabels: Record<number, string> = {
@@ -151,10 +176,10 @@ export default function CollaborationPlaylistPage() {
       <main className="container" style={{ paddingTop: '32px', marginBottom: '80px' }}>
         <div style={{ marginBottom: '32px', maxWidth: '600px' }}>
           <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px' }}>
-            共同歌單交集加總
+            共同歌單合集
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '20px' }}>
-            搜尋並加入多個使用者（需對方設定為公開歌單），系統將找出所有人都「會唱、常聽、聽過或不太記得」的交集歌曲，方便在線下 Live KTV 或聚會中作為選歌參考！
+            搜尋並加入至少兩個使用者（需對方設定為公開歌單），系統會把所有人標記過的歌曲 union 起來。再用下方的「依使用者 / 依熟悉度」chip 篩選誰會、會到什麼程度，方便挑線下 Live KTV 或聚會選歌。
           </p>
 
           <form onSubmit={handleCompare} className="card-el" style={{ padding: '20px' }}>
@@ -166,10 +191,14 @@ export default function CollaborationPlaylistPage() {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="搜尋使用者暱稱..."
+                  placeholder="點一下就會列出所有公開歌單的使用者…"
                   value={userSearchQuery}
                   onChange={(e) => handleUserSearch(e.target.value)}
-                  onFocus={() => setShowUserSuggestions(true)}
+                  onFocus={() => {
+                    setShowUserSuggestions(true);
+                    // 空欄位 focus → 把全部公開使用者撈出來給挑
+                    if (userSuggestions.length === 0) handleUserSearch(userSearchQuery);
+                  }}
                   onBlur={() => setTimeout(() => setShowUserSuggestions(false), 200)}
                 />
                 {showUserSuggestions && userSuggestions.length > 0 && (
@@ -205,7 +234,7 @@ export default function CollaborationPlaylistPage() {
               </div>
             )}
             <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? '正在計算共同交集...' : '比對共同歌單'}
+              {loading ? '正在合併歌單...' : '合併歌單'}
             </button>
           </form>
         </div>
@@ -213,19 +242,141 @@ export default function CollaborationPlaylistPage() {
         {result && (
           <div>
             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
-              比對結果: {result.users.map((u) => `${u}`).join(' ∩ ')}
+              {result.users.join(' / ')}
               <span style={{ marginLeft: '12px', fontSize: '14px', color: 'var(--accent-color)' }}>
-                共計 {result.songs.length} 首共同歌曲
+                合計 {filteredSongs.length} / {result.songs.length} 首
               </span>
             </h3>
 
+            {/* 二次篩選：依使用者 */}
+            {result.users.length > 0 && (
+              <section className="familiarity-filter-panel" data-testid="user-filter">
+                <span className="familiarity-filter-label">依使用者：</span>
+                {result.users.map((nick) => {
+                  const user = selectedUsers.find((u) => u.nickname === nick);
+                  const active = includedUsers.includes(nick);
+                  const color = user?.themeColor || 'var(--accent-color)';
+                  return (
+                    <button
+                      key={nick}
+                      type="button"
+                      className={`familiarity-btn ${active ? 'active' : ''}`}
+                      aria-pressed={active}
+                      data-testid={`user-filter-${nick}`}
+                      onClick={() =>
+                        setIncludedUsers((prev) =>
+                          prev.includes(nick) ? prev.filter((x) => x !== nick) : [...prev, nick],
+                        )
+                      }
+                      style={
+                        active
+                          ? { borderColor: color, color, backgroundColor: `${color}1a`, boxShadow: `0 0 12px ${color}1f` }
+                          : undefined
+                      }
+                    >
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: color, marginRight: '6px', verticalAlign: 'middle' }}></span>
+                      {nick}
+                    </button>
+                  );
+                })}
+                {includedUsers.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary familiarity-filter-clear"
+                    onClick={() => setIncludedUsers([])}
+                  >
+                    清除
+                  </button>
+                )}
+              </section>
+            )}
+
+            {/* 二次篩選：依熟悉度 */}
+            <section className="familiarity-filter-panel" data-testid="fam-filter">
+              <span className="familiarity-filter-label">依熟悉度：</span>
+              {[1, 2, 3, 4].map((v) => {
+                const labels: Record<number, string> = { 1: '會唱', 2: '常聽', 3: '聽過', 4: '模糊' };
+                const active = includedFams.includes(v);
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`familiarity-btn state-${v} ${active ? 'active' : ''}`}
+                    aria-pressed={active}
+                    data-testid={`fam-filter-${v}`}
+                    onClick={() =>
+                      setIncludedFams((prev) =>
+                        prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
+                      )
+                    }
+                  >
+                    {labels[v]}
+                  </button>
+                );
+              })}
+              {includedFams.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-secondary familiarity-filter-clear"
+                  onClick={() => setIncludedFams([])}
+                >
+                  清除
+                </button>
+              )}
+            </section>
+
+            {/* 二次篩選：依品牌（只列當前 union 結果裡實際出現過的品牌） */}
+            {presentBrands.length > 0 && (
+              <section className="familiarity-filter-panel" data-testid="brand-filter" style={{ marginBottom: '20px' }}>
+                <span className="familiarity-filter-label">依品牌：</span>
+                {presentBrands.map((b) => {
+                  const active = includedBrands.includes(b);
+                  const color = getBrandColor(b);
+                  return (
+                    <button
+                      key={b}
+                      type="button"
+                      className={`familiarity-btn ${active ? 'active' : ''}`}
+                      aria-pressed={active}
+                      data-testid={`brand-filter-${b}`}
+                      onClick={() =>
+                        setIncludedBrands((prev) =>
+                          prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b],
+                        )
+                      }
+                      style={
+                        active
+                          ? { borderColor: color, color, backgroundColor: `${color}1a`, boxShadow: `0 0 12px ${color}1f` }
+                          : undefined
+                      }
+                    >
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: color, marginRight: '6px', verticalAlign: 'middle' }}></span>
+                      <span className="brand-chip-name brand-chip-name--full">{getBrandDisplayName(b)}</span>
+                      <span className="brand-chip-name brand-chip-name--short">{getBrandShortName(b)}</span>
+                    </button>
+                  );
+                })}
+                {includedBrands.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary familiarity-filter-clear"
+                    onClick={() => setIncludedBrands([])}
+                  >
+                    清除
+                  </button>
+                )}
+              </section>
+            )}
+
             <section className="songs-grid">
-              {result.songs.length === 0 ? (
+              {filteredSongs.length === 0 ? (
                 <div className="card-el" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                  找不到所有使用者均熟悉的共同歌曲。試著減少比對的使用者數量！
+                  {result.songs.length === 0
+                    ? '所選使用者目前都沒有標記過任何歌曲。'
+                    : '沒有符合「依使用者 / 依熟悉度 / 依品牌」條件的歌曲，調整 chip 試試。'}
                 </div>
               ) : (
-                result.songs.map((song) => {
+                filteredSongs.map((song) => {
                   const brandClean = song.brand.replace('music_', '').toUpperCase();
 
                   return (
@@ -262,16 +413,23 @@ export default function CollaborationPlaylistPage() {
                         <MemberToggle members={song.members} />
                       </div>
 
-                      {/* 顯示各使用者的熟悉度對照 */}
+                      {/* 顯示各使用者的熟悉度對照 — 沒評過的標 「—」 */}
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                         {result.users.map((user) => {
                           const rating = song.ratings[user];
+                          const rated = rating != null;
                           return (
                             <div key={user} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user}</span>
-                              <span className={`familiarity-btn ${familiarityStates[rating]} active`} style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default' }}>
-                                {familiarityLabels[rating]}
-                              </span>
+                              {rated ? (
+                                <span className={`familiarity-btn ${familiarityStates[rating]} active`} style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default' }}>
+                                  {familiarityLabels[rating]}
+                                </span>
+                              ) : (
+                                <span className="familiarity-btn" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default', opacity: 0.4 }}>
+                                  —
+                                </span>
+                              )}
                             </div>
                           );
                         })}
@@ -291,12 +449,12 @@ export default function CollaborationPlaylistPage() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ marginBottom: '4px' }}>{selectedSong.title}</h2>
             <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>
-              這首歌曲有誰會唱或常聽？ (公開清單)
+              當前比對的使用者裡，誰會這首歌
             </div>
             {loadingSongUsers ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>載入中...</div>
             ) : songUsers.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>目前沒有公開的使用者會唱這首歌。</div>
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>當前比對的使用者都沒有標記過這首歌。</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
                 {songUsers.map((u, idx) => (

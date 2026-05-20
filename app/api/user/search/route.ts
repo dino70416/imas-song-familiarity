@@ -4,23 +4,24 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const q = searchParams.get('q');
-    
-    if (!q || q.trim().length === 0) {
-      return NextResponse.json([]);
-    }
+    const q = (searchParams.get('q') ?? '').trim();
 
+    // 空字串 → 列出全部公開使用者（讓前端 focus 時就有清單可挑）
+    // 非空 → case-insensitive contains（SQL LIKE '%q%'）
     const users = await prisma.user.findMany({
       where: {
-        nickname: { contains: q },
         isPublic: true,
+        ...(q.length > 0
+          ? { nickname: { contains: q, mode: 'insensitive' as const } }
+          : {}),
       },
       select: {
         nickname: true,
         shareCode: true,
         themeColor: true,
       },
-      take: 10,
+      orderBy: { nickname: 'asc' },
+      take: 50,
     });
 
     return NextResponse.json(users);

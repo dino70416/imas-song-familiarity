@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 
     if (cleanShareCodes.length < 2) {
       return NextResponse.json(
-        { error: '請至少輸入兩個不同的分享碼來比對共同歌單。' },
+        { error: '請至少選擇兩個使用者才能進行比對。' },
         { status: 400 }
       );
     }
@@ -59,7 +59,9 @@ export async function POST(request: Request) {
       },
     });
 
-    // 3. 計算交集：以 songId 為 Key，統計出現的使用者個數與詳細評估值
+    // 3. 以 songId 為 key，聚合每首歌、每個使用者的熟悉度（聯集）
+    //    早期版本在這裡會過濾「所有使用者都標過」才回傳；現在改回完整聯集，
+    //    讓前端用 chip filter 自由地切「誰會 / 什麼熟悉度」
     const songSelectionMap: Record<string, {
       song: any;
       ratings: Record<string, number>;
@@ -76,30 +78,27 @@ export async function POST(request: Request) {
       songSelectionMap[sel.songId].ratings[nickname] = sel.familiarity;
     });
 
-    // 4. 過濾出所有使用者均有標記的歌曲 (ratings 的 Key 數量等於 userIds 數量)
-    const intersectedSongs = Object.values(songSelectionMap)
-      .filter((item) => Object.keys(item.ratings).length === userIds.length)
-      .map((item) => ({
-        id: item.song.id,
-        slug: item.song.slug,
-        title: item.song.title,
-        brand: item.song.brand,
-        musicType: item.song.musicType,
-        lyrics: item.song.lyrics,
-        composer: item.song.composer,
-        arranger: item.song.arranger,
-        lowestPitch: item.song.lowestPitch,
-        highestPitch: item.song.highestPitch,
-        members: item.song.members.map((m: any) => ({
-          name: m.member.name,
-          cvName: m.member.cvName,
-        })),
-        ratings: item.ratings,
-      }));
+    const unionSongs = Object.values(songSelectionMap).map((item) => ({
+      id: item.song.id,
+      slug: item.song.slug,
+      title: item.song.title,
+      brand: item.song.brand,
+      musicType: item.song.musicType,
+      lyrics: item.song.lyrics,
+      composer: item.song.composer,
+      arranger: item.song.arranger,
+      lowestPitch: item.song.lowestPitch,
+      highestPitch: item.song.highestPitch,
+      members: item.song.members.map((m: any) => ({
+        name: m.member.name,
+        cvName: m.member.cvName,
+      })),
+      ratings: item.ratings,
+    }));
 
     return NextResponse.json({
       users: dbUsers.map((u) => u.nickname),
-      songs: intersectedSongs,
+      songs: unionSongs,
     });
   } catch (error: any) {
     return NextResponse.json(

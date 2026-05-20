@@ -97,3 +97,11 @@ export function getBrandDisplayName(brandId: string): string {
     default: return brandId.replace('music_', '').toUpperCase();
   }
 }
+
+// 取品牌的短碼版本（給空間有限的 chip / 手機版用）：盡量取括號裡的短碼，
+// 沒有括號就回原名（如 "Cover 曲" / "Remix 曲"）
+export function getBrandShortName(brandId: string): string {
+  const full = getBrandDisplayName(brandId);
+  const m = full.match(/\(([^)]+)\)\s*$/);
+  return m ? m[1] : full;
+}

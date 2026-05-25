@@ -31,6 +31,7 @@ model Song {
   arranger     String?
   lowestPitch  String?
   highestPitch String?
+  youtubeIds   String?         // 公式動画的 YouTube video ID，多個以逗號分隔
   members      SongMember[]
   units        SongUnit[]
   selections   UserSelection[]

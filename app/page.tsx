@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import MemberToggle from '@/components/MemberToggle';
 import MultiSelect, { MultiSelectOption } from '@/components/MultiSelect';
-import { buildThemeVars, getBrandColor, getBrandDisplayName, getAccentTextColor } from '@/lib/themeUtils';
+import { buildThemeVars, getBrandColor, getBrandDisplayName, getBrandShortName, getAccentTextColor } from '@/lib/themeUtils';
 import { BrandIcon } from '@/components/BrandIcon';
 import { BRAND_VALUES } from '@/lib/brandMap';
 import { useBrandFilter } from '@/lib/useBrandFilter';
 import { filterSongs } from '@/lib/filterSongs';
 import BackToTop from '@/components/BackToTop';
+import SongDetailModal from '@/components/SongDetailModal';
 
 interface Song {
   id: string;
@@ -22,6 +23,7 @@ interface Song {
   arranger: string | null;
   lowestPitch: string | null;
   highestPitch: string | null;
+  youtubeIds: string | null;
   members: Array<{ id?: string; name: string; cvName: string | null }>;
   units?: Array<{ id: string; name: string }>;
 }
@@ -150,6 +152,8 @@ export default function SongFamiliarityHub() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // 歌曲詳細彈窗
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
 
   // 表單輸入狀態
   const [usernameInput, setUsernameInput] = useState('');
@@ -264,6 +268,7 @@ export default function SongFamiliarityHub() {
       BRAND_VALUES.map((b) => ({
         id: b,
         label: getBrandDisplayName(b),
+        shortLabel: getBrandShortName(b),
       })),
     [],
   );
@@ -868,7 +873,14 @@ export default function SongFamiliarityHub() {
                 <div key={song.id} className="song-card">
                   <div className="song-info">
                     <div className="song-title-row">
-                      <span className="song-title">{song.title}</span>
+                      <button
+                        type="button"
+                        className="song-title song-title-btn"
+                        onClick={() => setSelectedSong(song)}
+                        title="點擊查看詳細資料與試聽"
+                      >
+                        {song.title}
+                      </button>
                       <span 
                         className="song-badge badge-brand"
                         style={{ 
@@ -977,6 +989,12 @@ export default function SongFamiliarityHub() {
       )}
 
       <BackToTop />
+
+      {/* 歌曲詳細彈窗 */}
+      <SongDetailModal
+        song={selectedSong}
+        onClose={() => setSelectedSong(null)}
+      />
 
       {/* 登入彈出視窗 */}
       {showLoginModal && (

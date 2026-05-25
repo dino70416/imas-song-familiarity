@@ -5,6 +5,8 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 export interface MultiSelectOption {
   id: string;
   label: string;
+  /** 空間不足時顯示的短標籤（透過 CSS 切換） */
+  shortLabel?: string;
   /** 顯示在主標籤下方的次標籤（例：CV 名、成員數） */
   sublabel?: string;
   /** 搜尋時額外比對的字串（例：kana） */
@@ -90,9 +92,31 @@ export default function MultiSelect({
 
   const selectedLabels = useMemo(() => {
     if (value.length === 0) return null;
-    const labelMap = new Map(options.map((o) => [o.id, o.label] as const));
-    return value.map((id) => labelMap.get(id) ?? '(已移除)');
+    const labelMap = new Map(
+      options.map((o) => [o.id, { label: o.label, shortLabel: o.shortLabel }] as const),
+    );
+    return value.map((id) => {
+      const data = labelMap.get(id);
+      if (!data) return <span key={id}>(已移除)</span>;
+      if (!data.shortLabel) return <span key={id}>{data.label}</span>;
+      return (
+        <span key={id}>
+          <span className="multiselect-label-full">{data.label}</span>
+          <span className="multiselect-label-short">{data.shortLabel}</span>
+        </span>
+      );
+    });
   }, [value, options]);
+
+  const renderSelectedLabels = () => {
+    if (!selectedLabels) return null;
+    // 使用 reduce 插入頓號
+    return selectedLabels.reduce((prev, curr) => (
+      <React.Fragment key={curr.key + '-join'}>
+        {prev}、{curr}
+      </React.Fragment>
+    ));
+  };
 
   return (
     <div
@@ -128,7 +152,7 @@ export default function MultiSelect({
           {value.length === 0 ? (
             <span style={{ color: 'var(--text-muted, #888)' }}>{placeholder}</span>
           ) : value.length <= 2 ? (
-            selectedLabels?.join('、')
+            renderSelectedLabels()
           ) : (
             `已選 ${value.length} 項`
           )}

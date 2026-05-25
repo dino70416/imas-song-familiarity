@@ -33,6 +33,7 @@ export async function GET() {
       arranger: song.arranger,
       lowestPitch: song.lowestPitch,
       highestPitch: song.highestPitch,
+      youtubeIds: song.youtubeIds ?? null,
       members: song.members.map((m) => ({
         id: m.member.id,
         name: m.member.name,

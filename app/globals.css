@@ -1037,3 +1037,335 @@ header h1 {
   background: var(--accent-text-dark, var(--accent-color));
 }
 
+/* ──────────────────────────────────────────────
+   歌名按鈕（可點擊開彈窗）
+────────────────────────────────────────────── */
+.song-title-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.4;
+  transition: color var(--transition-fast);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.song-title-btn:hover {
+  color: var(--accent-color);
+  text-decoration-color: var(--accent-color);
+}
+
+/* ──────────────────────────────────────────────
+   SongDetailModal
+────────────────────────────────────────────── */
+.song-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
+  padding: 16px;
+  animation: overlay-in 0.18s ease;
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.song-detail-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 900px;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  animation: modal-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 關閉按鈕 */
+.song-detail-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  z-index: 1;
+}
+.song-detail-close:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* 標頭 */
+.song-detail-header {
+  padding: 20px 24px 16px;
+  border-bottom: 2px solid var(--border-color);
+  flex-shrink: 0;
+}
+.song-detail-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  padding-right: 40px; /* 避免被關閉按鈕蓋到 */
+  line-height: 1.3;
+}
+.song-detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Body：左右兩欄 */
+.song-detail-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  overflow: hidden;
+  flex: 1;
+}
+
+.song-detail-info-col {
+  padding: 20px 20px 20px 24px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.song-detail-video-col {
+  padding: 20px 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow-y: auto;
+}
+
+/* Section 標題 */
+.song-detail-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* 歌曲資訊 DL */
+.song-detail-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+.song-detail-dl dt {
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  align-self: start;
+}
+.song-detail-dl dd {
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* 成員 chips */
+.song-detail-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.song-detail-member-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: var(--bg-base);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.chip-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.chip-cv {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* 組合 tags */
+.song-detail-units {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.song-detail-unit-tag {
+  background: var(--accent-glow-soft);
+  color: var(--accent-text-dark);
+  border: 1px solid var(--accent-glow-medium);
+  border-radius: var(--radius-full);
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+/* 公開使用者 */
+.song-detail-users {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.song-detail-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 4px 12px 4px 8px;
+  font-size: 13px;
+  background: var(--bg-surface);
+  transition: box-shadow var(--transition-fast);
+}
+.user-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.user-nick {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.user-fam-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+}
+.user-fam-badge.state-1 {
+  background: var(--color-state-1-glow);
+  color: var(--color-state-1);
+}
+.user-fam-badge.state-2 {
+  background: var(--color-state-2-glow);
+  color: var(--color-state-2);
+}
+
+/* YouTube embed */
+.song-detail-video-wrap {
+  width: 100%;
+}
+.song-detail-iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  border-radius: var(--radius-md);
+  display: block;
+}
+.song-detail-autoplay-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* 無影片佔位 */
+.song-detail-no-video {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+  aspect-ratio: 16 / 9;
+}
+.no-video-icon {
+  font-size: 32px;
+  opacity: 0.3;
+}
+.no-video-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.song-detail-loading,
+.song-detail-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 0;
+}
+
+/* badge-pitch */
+.badge-pitch {
+  background-color: rgba(109, 40, 217, 0.06);
+  color: var(--color-state-3);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+/* RWD：手機改成單欄 */
+@media (max-width: 700px) {
+  .song-detail-modal {
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--radius-md);
+  }
+  .song-detail-body {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .song-detail-info-col {
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 16px;
+    overflow-y: visible;
+  }
+  .song-detail-video-col {
+    padding: 16px;
+    overflow-y: visible;
+  }
+  .song-detail-title {
+    font-size: 18px;
+  }
+}

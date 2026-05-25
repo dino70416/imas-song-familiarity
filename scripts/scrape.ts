@@ -84,14 +84,7 @@ function extractYouTubeId(raw: string): string | null {
 function parseYouTubeIds(d$: cheerio.CheerioAPI): string[] {
   const ids = new Set<string>();
 
-  // 方法 1：找到 #movie 下所有 data-provider="youtube" 的 arve 元素，從 id 提取
-  d$('#movie [data-provider="youtube"]').each((_, el) => {
-    const elId = d$(el).attr('id') || '';
-    const vid = extractYouTubeId(elId);
-    if (vid) ids.add(vid);
-  });
-
-  // 方法 2：備援 — 從 iframe src 提取（防止 arve id 格式改變）
+  // 方法 1：從 iframe src 提取（防止 arve id 將 ID 轉為全小寫，破壞 YouTube 的大小寫敏感性）
   d$('#movie iframe').each((_, el) => {
     const src = d$(el).attr('src') || d$(el).attr('data-src-no-ap') || '';
     const vid = extractYouTubeId(src);

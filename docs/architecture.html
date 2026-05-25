@@ -343,12 +343,12 @@ erDiagram
   <div class="api-card">
     <div class="api-head"><span class="method GET">GET</span><span class="path">/api/user/search?q=</span></div>
     <div class="api-desc">依 nickname 模糊搜尋公開使用者 (大小寫通用，上限 50 筆；空 q 回所有公開使用者)</div>
-    <div class="api-io"><strong>Query:</strong> ?q=暱稱 (可空)<br/><strong>200:</strong> { nickname, shareCode, themeColor }[]</div>
+    <div class="api-io"><strong>Query:</strong> ?q=P名 (可空)<br/><strong>200:</strong> { nickname, shareCode, themeColor }[]</div>
   </div>
 
   <div class="api-card">
     <div class="api-head"><span class="method POST">POST</span><span class="path">/api/user/settings</span><span class="badge-auth">AUTH</span></div>
-    <div class="api-desc">更新暱稱、主題色 (#RRGGBB)、是否公開</div>
+    <div class="api-desc">更新 P名、主題色 (#RRGGBB)、是否公開</div>
     <div class="api-io"><strong>Body:</strong> { nickname, themeColor, isPublic }<br/><strong>200:</strong> 更新後的欄位</div>
   </div>
 

@@ -185,13 +185,13 @@ export default function CollaborationPlaylistPage() {
           <form onSubmit={handleCompare} className="card-el" style={{ padding: '20px' }}>
             <div className="form-group" style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                搜尋使用者暱稱
+                搜尋使用者 P名
               </label>
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="點一下就會列出所有公開歌單的使用者…"
+                  placeholder="搜尋使用者 P名..."
                   value={userSearchQuery}
                   onChange={(e) => handleUserSearch(e.target.value)}
                   onFocus={() => {

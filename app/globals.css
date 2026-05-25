@@ -339,7 +339,7 @@ header h1 {
   .filter-panel > *:first-child {
     grid-column: 1 / -1;
   }
-  /* 標題列：暱稱顯示在標題下方一行 (h1 + greeting 一起 wrap) */
+  /* 標題列：P名顯示在標題下方一行 (h1 + greeting 一起 wrap) */
   .header-title-row {
     flex: 1 1 100%;
     flex-wrap: wrap;

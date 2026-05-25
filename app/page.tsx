@@ -1058,7 +1058,7 @@ export default function SongFamiliarityHub() {
                 />
               </div>
               <div className="form-group">
-                <label>暱稱 (Nickname)</label>
+                <label>P名 (Nickname)</label>
                 <input
                   type="text"
                   className="form-input"
@@ -1108,7 +1108,7 @@ export default function SongFamiliarityHub() {
             <h2>個人設定</h2>
             <form onSubmit={handleSaveSettings}>
               <div className="form-group">
-                <label>使用者暱稱</label>
+                <label>使用者 P名</label>
                 <input
                   type="text"
                   className="form-input"

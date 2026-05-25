@@ -44,6 +44,11 @@ export default function SongDetailModal({ song, onClose }: SongDetailModalProps)
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [autoplayFailed, setAutoplayFailed] = useState(false);
 
+  // 成員折疊狀態
+  const membersRef = useRef<HTMLDivElement>(null);
+  const [membersExpanded, setMembersExpanded] = useState(false);
+  const [showExpandBtn, setShowExpandBtn] = useState(false);
+
   // 關閉 — Escape 鍵
   useEffect(() => {
     if (!song) return;
@@ -76,6 +81,27 @@ export default function SongDetailModal({ song, onClose }: SongDetailModalProps)
       .catch(() => {})
       .finally(() => setLoadingUsers(false));
   }, [song?.id]);
+
+  // 計算成員列表高度以決定是否顯示「展開更多」按鈕
+  // 延遲一點點確保 DOM 渲染完成
+  useEffect(() => {
+    if (!song) return;
+    
+    // 初始化為收合狀態與隱藏按鈕
+    setMembersExpanded(false);
+    setShowExpandBtn(false);
+
+    // 等待 React 實際把 members 塞入 DOM 且瀏覽器排版完成
+    const timer = setTimeout(() => {
+      if (membersRef.current) {
+        // 如果實際高度大於容器設定的 max-height (190px)，代表有內容被隱藏
+        if (membersRef.current.scrollHeight > 192) {
+          setShowExpandBtn(true);
+        }
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [song]);
 
   const handleOverlayClick = useCallback((e: React.MouseEvent) => {
     if (e.target === overlayRef.current) onClose();
@@ -166,13 +192,26 @@ export default function SongDetailModal({ song, onClose }: SongDetailModalProps)
 
               {/* 成員 */}
               {song.members.length > 0 && (
-                <div className="song-detail-members">
-                  {song.members.map((m, i) => (
-                    <div key={m.id ?? i} className="song-detail-member-chip">
-                      <span className="chip-name">{m.name}</span>
-                      {m.cvName && <span className="chip-cv">{m.cvName}</span>}
-                    </div>
-                  ))}
+                <div className="song-detail-members-container">
+                  <div
+                    ref={membersRef}
+                    className={`song-detail-members ${!membersExpanded ? 'is-collapsed' : ''}`}
+                  >
+                    {song.members.map((m, i) => (
+                      <div key={m.id ?? i} className="song-detail-member-chip">
+                        <span className="chip-name">{m.name}</span>
+                        {m.cvName && <span className="chip-cv">{m.cvName}</span>}
+                      </div>
+                    ))}
+                  </div>
+                  {showExpandBtn && (
+                    <button
+                      className="song-detail-expand-btn"
+                      onClick={() => setMembersExpanded(!membersExpanded)}
+                    >
+                      {membersExpanded ? '顯示較少' : '顯示更多'}
+                    </button>
+                  )}
                 </div>
               )}
 

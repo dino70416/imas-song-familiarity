@@ -1217,11 +1217,30 @@ header h1 {
 }
 
 /* 成員 chips */
+.song-detail-members-container {
+  margin-top: 10px;
+}
 .song-detail-members {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 10px;
+}
+.song-detail-members.is-collapsed {
+  max-height: 190px; /* 大約剛好 4 排放滿的高度: 42px * 4 + 6px * 3 = 186px */
+  overflow: hidden;
+}
+.song-detail-expand-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-color, #2681C8);
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 8px;
+  padding: 4px 8px;
+  display: inline-block;
+}
+.song-detail-expand-btn:hover {
+  text-decoration: underline;
 }
 .song-detail-member-chip {
   display: flex;

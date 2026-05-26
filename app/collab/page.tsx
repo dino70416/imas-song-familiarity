@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import MemberToggle from '@/components/MemberToggle';
+import UserPickerModal, { PickerUser } from '@/components/UserPickerModal';
 import { buildThemeVars, getBrandColor, getBrandDisplayName, getBrandShortName, getAccentTextColor } from '@/lib/themeUtils';
 
 
@@ -30,11 +31,20 @@ export default function CollaborationPlaylistPage() {
     songs: CollabSong[];
   } | null>(null);
 
-  // User search states
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [userSuggestions, setUserSuggestions] = useState<Array<{nickname: string, shareCode: string, themeColor: string}>>([]);
-  const [showUserSuggestions, setShowUserSuggestions] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState<Array<{nickname: string, shareCode: string, themeColor: string}>>([]);
+  // 已選的「其他」使用者(不含自己)；自己另外從 session 拿
+  const [selectedUsers, setSelectedUsers] = useState<PickerUser[]>([]);
+  const [showUserPicker, setShowUserPicker] = useState(false);
+  // 是否把自己加入比對（預設 ON,可在 self 區塊用 checkbox 切掉）
+  const [includeSelf, setIncludeSelf] = useState(true);
+
+  // 自己:登入時自動加入比對。未登入則 self = null
+  const self: PickerUser | null = session?.user
+    ? {
+        nickname: session.user.nickname || session.user.username || '我',
+        shareCode: session.user.shareCode!,
+        themeColor: session.user.themeColor || '#92cfbb',
+      }
+    : null;
 
   // Song users modal states
   const [selectedSong, setSelectedSong] = useState<CollabSong | null>(null);
@@ -50,36 +60,23 @@ export default function CollaborationPlaylistPage() {
   // 主題色（跟隨登入使用者設定）
   const themeColor = session?.user?.themeColor || '#92cfbb';
 
-  // Fetch user suggestions — 空 q 也撈（取得全部公開使用者列表，讓 focus 時就有清單可挑）
-  const handleUserSearch = async (q: string) => {
-    setUserSearchQuery(q);
-    try {
-      const res = await fetch(`/api/user/search?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      setUserSuggestions(Array.isArray(data) ? data : []);
-      setShowUserSuggestions(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleAddUser = (u: {nickname: string, shareCode: string, themeColor: string}) => {
-    if (!selectedUsers.find(su => su.shareCode === u.shareCode)) {
-      setSelectedUsers([...selectedUsers, u]);
-    }
-    setUserSearchQuery('');
-    setShowUserSuggestions(false);
-  };
-
   async function handleCompare(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setResult(null);
 
-    const shareCodes = selectedUsers.map(u => u.shareCode);
+    // 自己 + 已選其他人組成最終 shareCodes;includeSelf 可被使用者關掉
+    const shareCodes = [
+      ...(self && includeSelf ? [self.shareCode] : []),
+      ...selectedUsers.map((u) => u.shareCode),
+    ];
 
     if (shareCodes.length < 2) {
-      setError('請選擇至少兩個使用者，才能進行比對。');
+      setError(
+        self && includeSelf
+          ? '請至少再選擇一位其他使用者來跟你比對。'
+          : '請選擇至少兩個使用者，才能進行比對。',
+      );
       return;
     }
 
@@ -131,12 +128,43 @@ export default function CollaborationPlaylistPage() {
     return Array.from(new Set(result.songs.map((s) => s.brand)));
   }, [result]);
 
+  // 漸進渲染 — 一次只渲 30 張卡,捲到底加下一批;切篩選時重置
+  // 沒有這個 2000+ 首歌一次塞 DOM 點 chip 就卡爆
+  const PAGE_SIZE = 30;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [result, includedUsers, includedFams, includedBrands]);
+  const visibleSongs = useMemo(
+    () => filteredSongs.slice(0, visibleCount),
+    [filteredSongs, visibleCount],
+  );
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (visibleCount >= filteredSongs.length) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, filteredSongs.length));
+        }
+      },
+      { rootMargin: '400px' },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [visibleCount, filteredSongs.length]);
+
   // Modal 只列「當前比對的使用者」對這首歌的評分，不再撈全部公開使用者
   const handleSongClick = (song: CollabSong) => {
     setSelectedSong(song);
     const list = Object.entries(song.ratings).map(([nickname, fam]) => {
+      // 自己 + 已選其他人 — 找該暱稱的 themeColor
+      const allParticipants: PickerUser[] = self ? [self, ...selectedUsers] : selectedUsers;
       const themeColor =
-        selectedUsers.find((u) => u.nickname === nickname)?.themeColor ?? 'var(--accent-color)';
+        allParticipants.find((u) => u.nickname === nickname)?.themeColor ??
+        'var(--accent-color)';
       return { nickname, themeColor, familiarity: fam as number };
     });
     setSongUsers(list);
@@ -183,50 +211,127 @@ export default function CollaborationPlaylistPage() {
           </p>
 
           <form onSubmit={handleCompare} className="card-el" style={{ padding: '20px' }}>
-            <div className="form-group" style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                搜尋使用者 P名
-              </label>
-              <div style={{ position: 'relative' }}>
+            {/* 自己 — 登入時固定顯示；checkbox 切換是否加入比對 */}
+            {self && (
+              <label
+                data-testid="include-self-toggle"
+                style={{
+                  marginBottom: '14px',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-base)',
+                  borderLeft: `4px solid ${self.themeColor}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  opacity: includeSelf ? 1 : 0.55,
+                  transition: 'opacity 0.15s ease',
+                }}
+              >
                 <input
-                  type="text"
-                  className="form-input"
-                  placeholder="搜尋使用者 P名..."
-                  value={userSearchQuery}
-                  onChange={(e) => handleUserSearch(e.target.value)}
-                  onFocus={() => {
-                    setShowUserSuggestions(true);
-                    // 空欄位 focus → 把全部公開使用者撈出來給挑
-                    if (userSuggestions.length === 0) handleUserSearch(userSearchQuery);
-                  }}
-                  onBlur={() => setTimeout(() => setShowUserSuggestions(false), 200)}
+                  type="checkbox"
+                  checked={includeSelf}
+                  onChange={(e) => setIncludeSelf(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
                 />
-                {showUserSuggestions && userSuggestions.length > 0 && (
-                  <div className="autocomplete-dropdown">
-                    {userSuggestions.map(u => (
-                      <div 
-                        key={u.shareCode} 
-                        className="autocomplete-item"
-                        onClick={() => handleAddUser(u)}
-                      >
-                        <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: u.themeColor, marginRight: '8px', borderRadius: '50%' }}></span>
-                        {u.nickname}
-                      </div>
-                    ))}
+                <span
+                  style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: self.themeColor,
+                  }}
+                />
+                <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+                  把我自己 (<strong>{self.nickname}</strong>) 加入比對
+                  <span
+                    className="self-toggle-hint"
+                    style={{ color: 'var(--text-muted)', fontSize: '12px' }}
+                  >
+                    {includeSelf ? '（會跟下面這些人比）' : '（已取消 — 只看其他人）'}
+                  </span>
+                </span>
+              </label>
+            )}
+
+            <div className="form-group" style={{ marginBottom: '14px' }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '13px',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                {self ? '選擇要跟你比對的使用者' : '選擇要比對的使用者'}
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowUserPicker(true)}
+                data-testid="open-user-picker"
+                style={{ width: '100%', padding: '10px', fontSize: '13px' }}
+              >
+                ＋ 選擇使用者 {selectedUsers.length > 0 ? `(已選 ${selectedUsers.length} 人)` : ''}
+              </button>
+            </div>
+
+            {/* 已選的「其他」使用者 chip — 自己不在這裡 */}
+            {selectedUsers.length > 0 && (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  display: 'flex',
+                  gap: '8px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                {selectedUsers.map((u) => (
+                  <div
+                    key={u.shareCode}
+                    style={{
+                      background: 'var(--bg-base)',
+                      padding: '6px 12px',
+                      borderRadius: '20px',
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      border: `1px solid ${u.themeColor}50`,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: u.themeColor,
+                      }}
+                    />
+                    {u.nickname}
+                    <button
+                      type="button"
+                      style={{
+                        cursor: 'pointer',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                      }}
+                      onClick={() =>
+                        setSelectedUsers(
+                          selectedUsers.filter((x) => x.shareCode !== u.shareCode),
+                        )
+                      }
+                      aria-label={`移除 ${u.nickname}`}
+                    >
+                      &times;
+                    </button>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
-            
-            <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {selectedUsers.map(u => (
-                <div key={u.shareCode} style={{ background: 'var(--bg-base)', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', border: `1px solid ${u.themeColor}50` }}>
-                  <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: u.themeColor }}></span>
-                  {u.nickname}
-                  <button type="button" style={{ cursor: 'pointer', background: 'none', border: 'none', color: 'var(--text-muted)' }} onClick={() => setSelectedUsers(selectedUsers.filter(x => x.shareCode !== u.shareCode))}>&times;</button>
-                </div>
-              ))}
-            </div>
+            )}
 
             {error && (
               <div style={{ color: '#ef4444', fontSize: '13px', marginBottom: '16px' }}>
@@ -270,7 +375,7 @@ export default function CollaborationPlaylistPage() {
                       }
                       style={
                         active
-                          ? { borderColor: color, color, backgroundColor: `${color}1a`, boxShadow: `0 0 12px ${color}1f` }
+                          ? { borderColor: color, color, backgroundColor: `${color}2a`, boxShadow: `inset 0 0 0 1px ${color}` }
                           : undefined
                       }
                     >
@@ -346,7 +451,7 @@ export default function CollaborationPlaylistPage() {
                       }
                       style={
                         active
-                          ? { borderColor: color, color, backgroundColor: `${color}1a`, boxShadow: `0 0 12px ${color}1f` }
+                          ? { borderColor: color, color, backgroundColor: `${color}2a`, boxShadow: `inset 0 0 0 1px ${color}` }
                           : undefined
                       }
                     >
@@ -376,7 +481,7 @@ export default function CollaborationPlaylistPage() {
                     : '沒有符合「依使用者 / 依熟悉度 / 依品牌」條件的歌曲，調整 chip 試試。'}
                 </div>
               ) : (
-                filteredSongs.map((song) => {
+                visibleSongs.map((song) => {
                   const brandClean = song.brand.replace('music_', '').toUpperCase();
 
                   return (
@@ -438,10 +543,46 @@ export default function CollaborationPlaylistPage() {
                   );
                 })
               )}
+
+              {/* 漸進渲染哨兵 — 捲到此處再載入下一批 */}
+              {visibleCount < filteredSongs.length ? (
+                <div
+                  ref={sentinelRef}
+                  data-testid="collab-load-sentinel"
+                  style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                    fontSize: '13px',
+                  }}
+                >
+                  載入中… (還有 {filteredSongs.length - visibleCount} 首)
+                </div>
+              ) : filteredSongs.length > PAGE_SIZE ? (
+                <div
+                  style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                    fontSize: '12px',
+                  }}
+                >
+                  — 已顯示全部 {filteredSongs.length} 首 —
+                </div>
+              ) : null}
             </section>
           </div>
         )}
       </main>
+
+      {/* 使用者多選 modal */}
+      <UserPickerModal
+        open={showUserPicker}
+        onClose={() => setShowUserPicker(false)}
+        selectedShareCodes={selectedUsers.map((u) => u.shareCode)}
+        selfShareCode={self?.shareCode}
+        onConfirm={(picks) => setSelectedUsers(picks)}
+      />
 
       {/* 顯示特定歌曲的公開使用者模態框 */}
       {selectedSong && (

@@ -39,61 +39,65 @@ export async function POST(request: Request) {
     }
 
     const userIds = dbUsers.map((u) => u.id);
+    // O(1) 對應，避免後面 dbUsers.find() 每個 selection 都 O(N) 掃
+    const nickByUserId = new Map(dbUsers.map((u) => [u.id, u.nickname]));
 
-    // 2. 獲取所有使用者非 0 的歌曲選擇
-    const allSelections = await prisma.userSelection.findMany({
-      where: {
-        userId: { in: userIds },
-        familiarity: { in: [1, 2, 3, 4] },
-      },
-      include: {
-        song: {
-          include: {
-            members: {
-              include: {
-                member: true,
-              },
-            },
-          },
+    // 2a. 只拉「最小欄位」的 selections — 不含 song 嵌套關聯
+    //     之前的 include: { song: { include: { members } } } 會讓 Prisma 把每首歌依
+    //     使用者數複製多份回傳，10 人 7566 筆 selections 就會吃 1MB+。
+    //     拆成「先抓 ratings → 再用 distinct songId 抓一次 song」可降約 50% 時間。
+    const sels = await prisma.userSelection.findMany({
+      where: { userId: { in: userIds }, familiarity: { in: [1, 2, 3, 4] } },
+      select: { songId: true, userId: true, familiarity: true },
+    });
+
+    // 3. 以 songId 為 key 聚合每個使用者的熟悉度（聯集）
+    const ratingsBySong = new Map<string, Record<string, number>>();
+    for (const s of sels) {
+      const nick = nickByUserId.get(s.userId) ?? '';
+      let r = ratingsBySong.get(s.songId);
+      if (!r) {
+        r = {};
+        ratingsBySong.set(s.songId, r);
+      }
+      r[nick] = s.familiarity;
+    }
+
+    // 2b. 拿 distinct songIds 一次抓 song（只取 collab 頁實際會用的欄位 + member name/cvName，
+    //     不抓 youtubeIds / member.id / kana / color 等省 payload）
+    const songIds = Array.from(ratingsBySong.keys());
+    const songs = await prisma.song.findMany({
+      where: { id: { in: songIds } },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        brand: true,
+        musicType: true,
+        lyrics: true,
+        composer: true,
+        arranger: true,
+        lowestPitch: true,
+        highestPitch: true,
+        members: {
+          select: { member: { select: { name: true, cvName: true } } },
         },
       },
     });
 
-    // 3. 以 songId 為 key，聚合每首歌、每個使用者的熟悉度（聯集）
-    //    早期版本在這裡會過濾「所有使用者都標過」才回傳；現在改回完整聯集，
-    //    讓前端用 chip filter 自由地切「誰會 / 什麼熟悉度」
-    const songSelectionMap: Record<string, {
-      song: any;
-      ratings: Record<string, number>;
-    }> = {};
-
-    allSelections.forEach((sel) => {
-      const nickname = dbUsers.find((u) => u.id === sel.userId)?.nickname || '';
-      if (!songSelectionMap[sel.songId]) {
-        songSelectionMap[sel.songId] = {
-          song: sel.song,
-          ratings: {},
-        };
-      }
-      songSelectionMap[sel.songId].ratings[nickname] = sel.familiarity;
-    });
-
-    const unionSongs = Object.values(songSelectionMap).map((item) => ({
-      id: item.song.id,
-      slug: item.song.slug,
-      title: item.song.title,
-      brand: item.song.brand,
-      musicType: item.song.musicType,
-      lyrics: item.song.lyrics,
-      composer: item.song.composer,
-      arranger: item.song.arranger,
-      lowestPitch: item.song.lowestPitch,
-      highestPitch: item.song.highestPitch,
-      members: item.song.members.map((m: any) => ({
-        name: m.member.name,
-        cvName: m.member.cvName,
-      })),
-      ratings: item.ratings,
+    const unionSongs = songs.map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      title: s.title,
+      brand: s.brand,
+      musicType: s.musicType,
+      lyrics: s.lyrics,
+      composer: s.composer,
+      arranger: s.arranger,
+      lowestPitch: s.lowestPitch,
+      highestPitch: s.highestPitch,
+      members: s.members.map((m) => ({ name: m.member.name, cvName: m.member.cvName })),
+      ratings: ratingsBySong.get(s.id) || {},
     }));
 
     return NextResponse.json({

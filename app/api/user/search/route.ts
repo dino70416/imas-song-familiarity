@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         themeColor: true,
       },
       orderBy: { nickname: 'asc' },
-      take: 50,
+      take: 200,
     });
 
     return NextResponse.json(users);

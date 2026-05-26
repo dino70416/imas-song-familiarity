@@ -45,3 +45,6 @@ next-env.d.ts
 /prisma/dev.db
 /scratch/
 /data/
+
+# scraped idol thumbnails (re-generate via npm run sync:idol-images)
+/public/idol-images/

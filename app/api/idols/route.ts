@@ -22,15 +22,18 @@ export async function GET(request: Request) {
         kana: true,
         cvName: true,
         production: true,
+        imagePath: true,
       },
       orderBy: [{ kana: 'asc' }, { name: 'asc' }],
     });
 
+    // 偶像列表的 shape(production / imagePath / 等)仍在迭代;比照 /api/songs 走 no-store
+    // 避免使用者拿到 1 小時內的舊版(這次 session 已經被咬過數次)
     return new NextResponse(JSON.stringify(idols), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=600',
+        'Cache-Control': 'no-store',
       },
     });
   } catch (error: any) {

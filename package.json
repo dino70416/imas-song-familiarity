@@ -11,6 +11,8 @@
     "sync:units": "ts-node --project scripts/tsconfig.json scripts/sync-units.ts",
     "sync:songs": "ts-node --project scripts/tsconfig.json scripts/scrape.ts",
     "sync:pitches": "ts-node --project scripts/tsconfig.json scripts/update-pitches.ts",
+    "sync:idol-images": "ts-node --project scripts/tsconfig.json scripts/sync-idol-images.ts",
+    "fix:876": "ts-node --project scripts/tsconfig.json scripts/fix-876.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
@@ -24,7 +26,8 @@
     "next-auth": "^4.24.14",
     "p-limit": "^7.3.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

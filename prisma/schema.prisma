@@ -48,6 +48,9 @@ model Member {
   cvKana     String?
   production String?      // cg | 765 | sc | 315 | gakuen | hatsuboshi | 876
   color      String?      // 主題代表色 (Hex)
+  // 偶像縮圖的相對路徑（例：/idol-images/1.webp）。圖片本身存 public/idol-images/。
+  // 只存路徑，不存 base64/blob，把 DB 體積壓到最小（~25 char/row）。
+  imagePath  String?
   songs      SongMember[]
   units      UnitMember[]
 

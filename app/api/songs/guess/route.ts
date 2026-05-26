@@ -11,13 +11,36 @@ export async function GET() {
         title: true,
         brand: true,
         youtubeIds: true,
+        units: {
+          select: {
+            unit: {
+              select: { name: true }
+            }
+          }
+        },
+        members: {
+          select: {
+            member: {
+              select: { name: true }
+            }
+          }
+        }
       },
       orderBy: {
         title: 'asc',
       },
     });
 
-    return NextResponse.json(songs);
+    const formattedSongs = songs.map(song => ({
+      id: song.id,
+      title: song.title,
+      brand: song.brand,
+      youtubeIds: song.youtubeIds,
+      units: song.units.map(u => ({ name: u.unit.name })),
+      members: song.members.map(m => ({ name: m.member.name }))
+    }));
+
+    return NextResponse.json(formattedSongs);
   } catch (error: any) {
     return NextResponse.json(
       { error: '載入遊戲題庫失敗', details: error.message },

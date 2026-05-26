@@ -40,60 +40,67 @@ export async function POST(request: Request) {
 
     const userIds = dbUsers.map((u) => u.id);
 
-    // 2. 獲取所有使用者非 0 的歌曲選擇
+    // 2. 獲取所有使用者非 0 的歌曲選擇（輕量級查詢，不 include song）
     const allSelections = await prisma.userSelection.findMany({
       where: {
         userId: { in: userIds },
         familiarity: { in: [1, 2, 3, 4] },
       },
+      select: {
+        userId: true,
+        songId: true,
+        familiarity: true,
+      }
+    });
+
+    // 3. 萃取唯一的 songId 清單並批次抓取歌曲詳細資料
+    const uniqueSongIds = Array.from(new Set(allSelections.map((sel) => sel.songId)));
+    
+    const targetSongs = await prisma.song.findMany({
+      where: {
+        id: { in: uniqueSongIds }
+      },
       include: {
-        song: {
+        members: {
           include: {
-            members: {
-              include: {
-                member: true,
-              },
-            },
+            member: true,
           },
         },
       },
     });
 
-    // 3. 以 songId 為 key，聚合每首歌、每個使用者的熟悉度（聯集）
-    //    早期版本在這裡會過濾「所有使用者都標過」才回傳；現在改回完整聯集，
-    //    讓前端用 chip filter 自由地切「誰會 / 什麼熟悉度」
-    const songSelectionMap: Record<string, {
-      song: any;
-      ratings: Record<string, number>;
-    }> = {};
+    // 4. 建立 UserId 到 Nickname 的映射表，提升查找效能 O(1)
+    const userIdToNickname = new Map(dbUsers.map(u => [u.id, u.nickname]));
 
-    allSelections.forEach((sel) => {
-      const nickname = dbUsers.find((u) => u.id === sel.userId)?.nickname || '';
-      if (!songSelectionMap[sel.songId]) {
-        songSelectionMap[sel.songId] = {
-          song: sel.song,
-          ratings: {},
-        };
+    // 5. 將使用者的評分聚合到對應的 songId 上
+    const ratingsMap: Record<string, Record<string, number>> = {};
+    for (const sel of allSelections) {
+      const nickname = userIdToNickname.get(sel.userId);
+      if (!nickname) continue;
+      
+      if (!ratingsMap[sel.songId]) {
+        ratingsMap[sel.songId] = {};
       }
-      songSelectionMap[sel.songId].ratings[nickname] = sel.familiarity;
-    });
+      ratingsMap[sel.songId][nickname] = sel.familiarity;
+    }
 
-    const unionSongs = Object.values(songSelectionMap).map((item) => ({
-      id: item.song.id,
-      slug: item.song.slug,
-      title: item.song.title,
-      brand: item.song.brand,
-      musicType: item.song.musicType,
-      lyrics: item.song.lyrics,
-      composer: item.song.composer,
-      arranger: item.song.arranger,
-      lowestPitch: item.song.lowestPitch,
-      highestPitch: item.song.highestPitch,
-      members: item.song.members.map((m: any) => ({
+    // 6. 組合最終結果
+    const unionSongs = targetSongs.map((song) => ({
+      id: song.id,
+      slug: song.slug,
+      title: song.title,
+      brand: song.brand,
+      musicType: song.musicType,
+      lyrics: song.lyrics,
+      composer: song.composer,
+      arranger: song.arranger,
+      lowestPitch: song.lowestPitch,
+      highestPitch: song.highestPitch,
+      members: song.members.map((m: any) => ({
         name: m.member.name,
         cvName: m.member.cvName,
       })),
-      ratings: item.ratings,
+      ratings: ratingsMap[song.id] || {},
     }));
 
     return NextResponse.json({

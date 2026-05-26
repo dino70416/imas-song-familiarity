@@ -92,6 +92,14 @@ async function main() {
     `[sync-idols] 完成 — 新增 ${created}、更新 ${updated}、略過 ${skipped}`,
   );
 
+  // vα-liv (876) 自動重分類 — sync 寫回了上游的錯誤分類,這裡再修一次
+  console.log('[sync-idols] 套用 vα-liv (876) 重分類...');
+  const { reclassify876 } = await import('../lib/idolOverrides');
+  const r = await reclassify876(prisma);
+  console.log(
+    `[sync-idols] 重分類完成 — auto=${r.autoMoved}, manual=${r.manualMoved}, total 876=${r.total876}`,
+  );
+
   // 統計 production 分布
   const byProduction = await prisma.member.groupBy({
     by: ['production'],

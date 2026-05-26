@@ -22,7 +22,7 @@ export const brandToProduction: Record<string, string[]> = {
   music_cg: ['cg'],
   music_ml: ['765'],
   music_as: ['765'],
-  music_876: ['876', '765'], // 876 idols 偶爾被歸到 765，暫時兩個都接
+  music_876: ['876'], // vα-liv 偶像由 scripts/fix-876.ts 重新歸到 '876' (來源 API 全混在 765 裡)
   music_shiny: ['sc', '283'], // sc 是舊代碼、283 是新代碼，兩個都接
   music_sidem: ['315'],
   music_gakuen: ['gakuen', 'hatsuboshi'],

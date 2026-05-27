@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(request: Request) {
   try {
@@ -39,28 +40,24 @@ export async function POST(request: Request) {
     }
 
     const userIds = dbUsers.map((u) => u.id);
-    // O(1) 對應，避免後面 dbUsers.find() 每個 selection 都 O(N) 掃
-    const nickByUserId = new Map(dbUsers.map((u) => [u.id, u.nickname]));
 
-    // 2a. 只拉「最小欄位」的 selections — 不含 song 嵌套關聯
-    //     之前的 include: { song: { include: { members } } } 會讓 Prisma 把每首歌依
-    //     使用者數複製多份回傳，10 人 7566 筆 selections 就會吃 1MB+。
-    //     拆成「先抓 ratings → 再用 distinct songId 抓一次 song」可降約 50% 時間。
-    const sels = await prisma.userSelection.findMany({
-      where: { userId: { in: userIds }, familiarity: { in: [1, 2, 3, 4] } },
-      select: { songId: true, userId: true, familiarity: true },
-    });
+    // 2a. 利用 PostgreSQL 原生聚合（jsonb_object_agg），將負載從 Node.js 轉移至資料庫
+    // 捨棄 findMany 與 Node.js 的 for 迴圈，避免 O(N) 記憶體與網路 I/O 爆炸
+    const aggregatedRatings = await prisma.$queryRaw<{ songId: string; ratings: Record<string, number> }[]>`
+      SELECT 
+        "songId", 
+        jsonb_object_agg(U.nickname, S.familiarity) as ratings
+      FROM "UserSelection" S
+      JOIN "User" U ON S."userId" = U.id
+      WHERE U.id IN (${Prisma.join(userIds)})
+        AND S.familiarity IN (1, 2, 3, 4)
+      GROUP BY "songId"
+    `;
 
     // 3. 以 songId 為 key 聚合每個使用者的熟悉度（聯集）
     const ratingsBySong = new Map<string, Record<string, number>>();
-    for (const s of sels) {
-      const nick = nickByUserId.get(s.userId) ?? '';
-      let r = ratingsBySong.get(s.songId);
-      if (!r) {
-        r = {};
-        ratingsBySong.set(s.songId, r);
-      }
-      r[nick] = s.familiarity;
+    for (const row of aggregatedRatings) {
+      ratingsBySong.set(row.songId, row.ratings);
     }
 
     // 2b. 拿 distinct songIds 一次抓 song（只取 collab 頁實際會用的欄位 + member name/cvName，

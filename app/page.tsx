@@ -126,8 +126,10 @@ export default function SongFamiliarityHub() {
   const [selectedIdols, setSelectedIdols] = useState<string[]>([]);
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   // 下排：依「我自己標的熟悉度」過濾。值為 0|1|2|3|4(OR)；空陣列 = 不限。
-  // 0 在資料模型上等同未評(state 0 不存 DB)，所以「不記得 / 未評」是同一桶。
+  // 「未評」永遠顯示(這個頁面當「待評清單」用);showRated 控制是否也顯示已評
+  // 預設 showRated=false → 評過的歌就消失,清單只剩待評
   const [selectedFamiliarities, setSelectedFamiliarities] = useState<number[]>([]);
+  const [showRated, setShowRated] = useState(false);
   const [showPitchModal, setShowPitchModal] = useState(false);
   // 熟悉度定義說明卡 — 手機預設收起，桌面預設展開
   const [defsOpen, setDefsOpen] = useState(true);
@@ -359,20 +361,10 @@ export default function SongFamiliarityHub() {
 
   // 5. 點選熟悉度更新
   function handleSelect(songId: string, familiarity: number) {
-    setSelections((prev) => {
-      const updated = { ...prev };
-      if (familiarity === 0) {
-        delete updated[songId]; // 0 代表不記得，不儲存於資料庫以節省空間
-      } else {
-        updated[songId] = familiarity;
-      }
-      return updated;
-    });
-
-    setUnsavedChanges((prev) => ({
-      ...prev,
-      [songId]: familiarity,
-    }));
+    // 0 也是合法狀態(「不記得」explicit),要存進 DB
+    // 真正的「未評」只能透過從來沒按過按鈕來達成(沒有 DB row)
+    setSelections((prev) => ({ ...prev, [songId]: familiarity }));
+    setUnsavedChanges((prev) => ({ ...prev, [songId]: familiarity }));
   }
 
   // 6. 登入與註冊處理
@@ -492,10 +484,16 @@ export default function SongFamiliarityHub() {
       selectedIdols,
       selectedUnits,
     });
-    if (selectedFamiliarities.length === 0) return upstream;
-    const famSet = new Set(selectedFamiliarities);
-    // 未評的 song 在 selections 裡查不到 → 視為 0(不記得 / 未評)
-    return upstream.filter((s) => famSet.has(selections[s.id] ?? 0));
+    // 未評歌(無 row):永遠顯示 — 這個頁面當「待評清單」用
+    // 已評歌(0-4 row):只在 showRated=true 時顯示;若有 chip 再用 OR 過濾
+    const famSet = selectedFamiliarities.length > 0 ? new Set(selectedFamiliarities) : null;
+    return upstream.filter((s) => {
+      const myFam = selections[s.id];
+      if (myFam === undefined) return true; // 未評永遠顯示
+      if (!showRated) return false; // 已評預設隱藏
+      if (famSet === null) return true;
+      return famSet.has(myFam);
+    });
   }, [
     songs,
     searchQuery,
@@ -505,6 +503,7 @@ export default function SongFamiliarityHub() {
     selectedUnits,
     selectedFamiliarities,
     selections,
+    showRated,
   ]);
 
   // 漸進式載入：每次只渲染 PAGE_SIZE 首，滾動到底再加下一頁。
@@ -520,6 +519,7 @@ export default function SongFamiliarityHub() {
     selectedIdols,
     selectedUnits,
     selectedFamiliarities,
+    showRated,
   ]);
 
   const visibleSongs = useMemo(
@@ -552,6 +552,7 @@ export default function SongFamiliarityHub() {
     setSelectedIdols([]);
     setSelectedUnits([]);
     setSelectedFamiliarities([]);
+    setShowRated(false);
   }
 
   const anyFilterActive =
@@ -560,7 +561,8 @@ export default function SongFamiliarityHub() {
     selectedTypes.length > 0 ||
     selectedIdols.length > 0 ||
     selectedUnits.length > 0 ||
-    selectedFamiliarities.length > 0;
+    selectedFamiliarities.length > 0 ||
+    showRated; // 勾「顯示已評」也算啟用篩選(預設為 false)
 
   // 動態設定主題色（含所有衍生色）
   const currentThemeColor = session?.user?.themeColor || '#92cfbb';
@@ -742,16 +744,38 @@ export default function SongFamiliarityHub() {
               </button>
             );
           })}
-          {selectedFamiliarities.length > 0 && (
-            <button
-              type="button"
-              className="btn btn-secondary familiarity-filter-clear"
-              onClick={() => setSelectedFamiliarities([])}
-              data-testid="fam-filter-clear"
-            >
-              清除
-            </button>
-          )}
+          <label
+            className="familiarity-unrated-toggle"
+            data-testid="show-rated-toggle"
+            title="預設只顯示未評過的歌(當待評清單用);勾起來才會看到已評的歌"
+          >
+            <input
+              type="checkbox"
+              checked={showRated}
+              onChange={(e) => setShowRated(e.target.checked)}
+            />
+            <span>顯示已評</span>
+          </label>
+          {/* 清除按鈕永遠 render(disabled 時 visibility hidden)避免 flex row reflow */}
+          <button
+            type="button"
+            className="btn btn-secondary familiarity-filter-clear"
+            onClick={() => {
+              setSelectedFamiliarities([]);
+              setShowRated(false);
+            }}
+            data-testid="fam-filter-clear"
+            style={{
+              visibility:
+                selectedFamiliarities.length > 0 || showRated
+                  ? 'visible'
+                  : 'hidden',
+            }}
+            aria-hidden={!(selectedFamiliarities.length > 0 || showRated)}
+            tabIndex={selectedFamiliarities.length > 0 || showRated ? 0 : -1}
+          >
+            清除
+          </button>
         </section>
 
         {/* 熟悉度定義說明 — 手機收起，可點開 */}

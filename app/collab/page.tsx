@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { Virtuoso } from 'react-virtuoso';
 import MemberToggle from '@/components/MemberToggle';
@@ -57,6 +57,9 @@ export default function CollaborationPlaylistPage() {
   const [includedUsers, setIncludedUsers] = useState<string[]>([]);
   const [includedFams, setIncludedFams] = useState<number[]>([]);
   const [includedBrands, setIncludedBrands] = useState<string[]>([]);
+  // 排序：依加權分數 (會唱=4 / 常聽=3 / 聽過=2 / 模糊=1) 加總,分數高者排上面
+  // 預設 ON — 線下聚會選歌時最有用的排序
+  const [sortByScore, setSortByScore] = useState(true);
 
   // 全站歌曲目錄 (Global Song Catalog)，用於與後端傳回的輕量評分資料進行 Join
   const [globalSongsMap, setGlobalSongsMap] = useState<Map<string, Omit<CollabSong, 'ratings'>>>(new Map());
@@ -142,13 +145,26 @@ export default function CollaborationPlaylistPage() {
     }
   }
 
-  // 對 API 回來的聯集再做二次過濾（同欄 OR、欄位之間 AND）
+  // 加權分數: 5-familiarity → 會唱=4 / 常聽=3 / 聽過=2 / 模糊=1
+  // 加總所有(有評過的)使用者對該歌的權重;沒評 / 不在 1..4 範圍 = 不計分
+  // 排序時若有 includedUsers chip,只算被選到的人(跟「合計」對齊使用者意圖)
+  function songScore(s: CollabSong, userSet: Set<string> | null): number {
+    let total = 0;
+    for (const [nick, fam] of Object.entries(s.ratings)) {
+      if (userSet && !userSet.has(nick)) continue;
+      if (typeof fam !== 'number' || fam < 1 || fam > 4) continue;
+      total += 5 - fam;
+    }
+    return total;
+  }
+
+  // 對 API 回來的聯集再做二次過濾（同欄 OR、欄位之間 AND）+ 排序
   const filteredSongs = useMemo(() => {
     if (!result) return [];
     const userSet = includedUsers.length > 0 ? new Set(includedUsers) : null;
     const famSet = includedFams.length > 0 ? new Set(includedFams) : null;
     const brandSet = includedBrands.length > 0 ? new Set(includedBrands) : null;
-    return result.songs.filter((s) => {
+    const filtered = result.songs.filter((s) => {
       if (brandSet && !brandSet.has(s.brand)) return false;
       return Object.entries(s.ratings).some(([nick, rating]) => {
         if (userSet && !userSet.has(nick)) return false;
@@ -156,7 +172,12 @@ export default function CollaborationPlaylistPage() {
         return true;
       });
     });
-  }, [result, includedUsers, includedFams, includedBrands]);
+    if (!sortByScore) return filtered;
+    // Array.sort 自 ES2019 stable,同分維持原順序
+    return [...filtered].sort(
+      (a, b) => songScore(b, userSet) - songScore(a, userSet),
+    );
+  }, [result, includedUsers, includedFams, includedBrands, sortByScore]);
 
   // 下拉只列出當前 union 結果裡實際出現過的品牌
   const presentBrands = useMemo(() => {
@@ -482,6 +503,41 @@ export default function CollaborationPlaylistPage() {
               </section>
             )}
 
+            {/* 排序切換 — 預設依分數排序,可關掉回到 union 原始順序 */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                margin: '8px 0 16px',
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <label
+                data-testid="sort-by-score-toggle"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+                title="會唱=4 / 常聽=3 / 聽過=2 / 模糊=1,所有人加總;若選了「依使用者」chip,只計算被選到的人"
+              >
+                <input
+                  type="checkbox"
+                  checked={sortByScore}
+                  onChange={(e) => setSortByScore(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span>依會唱程度排序</span>
+              </label>
+              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                會唱=4 / 常聽=3 / 聽過=2 / 模糊=1 加總
+              </span>
+            </div>
+
             <section className="songs-grid">
               {filteredSongs.length === 0 ? (
                 <div className="card-el" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
@@ -501,9 +557,9 @@ export default function CollaborationPlaylistPage() {
                         <div className="song-info">
                           <div className="song-title-row">
                             <span className="song-title">{song.title}</span>
-                            <span 
+                            <span
                               className="song-badge badge-brand"
-                              style={{ 
+                              style={{
                                 backgroundColor: getBrandColor(song.brand),
                                 color: getAccentTextColor(getBrandColor(song.brand))
                               }}

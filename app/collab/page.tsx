@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { Virtuoso } from 'react-virtuoso';
 import MemberToggle from '@/components/MemberToggle';
 import UserPickerModal, { PickerUser } from '@/components/UserPickerModal';
 import { buildThemeVars, getBrandColor, getBrandDisplayName, getBrandShortName, getAccentTextColor } from '@/lib/themeUtils';
@@ -57,6 +58,30 @@ export default function CollaborationPlaylistPage() {
   const [includedFams, setIncludedFams] = useState<number[]>([]);
   const [includedBrands, setIncludedBrands] = useState<string[]>([]);
 
+  // 全站歌曲目錄 (Global Song Catalog)，用於與後端傳回的輕量評分資料進行 Join
+  const [globalSongsMap, setGlobalSongsMap] = useState<Map<string, Omit<CollabSong, 'ratings'>>>(new Map());
+  const [catalogLoading, setCatalogLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/songs?schema=v2', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const map = new Map<string, Omit<CollabSong, 'ratings'>>();
+          for (const s of data) map.set(s.id, s);
+          setGlobalSongsMap(map);
+        }
+      } catch (e) {
+        console.error('無法載入歌曲目錄:', e);
+      } finally {
+        setCatalogLoading(false);
+      }
+    }
+    loadCatalog();
+  }, []);
+
   // 主題色（跟隨登入使用者設定）
   const themeColor = session?.user?.themeColor || '#92cfbb';
 
@@ -93,7 +118,18 @@ export default function CollaborationPlaylistPage() {
       if (!res.ok) {
         setError(data.error || '比對失敗。');
       } else {
-        setResult(data);
+        // 將 API 傳回的 { id, ratings } 與全站歌曲目錄 Join
+        const mergedSongs: CollabSong[] = [];
+        for (const raw of data.songs) {
+          const baseSong = globalSongsMap.get(raw.id);
+          if (baseSong) {
+            mergedSongs.push({
+              ...baseSong,
+              ratings: raw.ratings,
+            });
+          }
+        }
+        setResult({ users: data.users, songs: mergedSongs });
         // 換新的比對結果就清掉舊的二次篩選
         setIncludedUsers([]);
         setIncludedFams([]);
@@ -128,34 +164,7 @@ export default function CollaborationPlaylistPage() {
     return Array.from(new Set(result.songs.map((s) => s.brand)));
   }, [result]);
 
-  // 漸進渲染 — 一次只渲 30 張卡,捲到底加下一批;切篩選時重置
-  // 沒有這個 2000+ 首歌一次塞 DOM 點 chip 就卡爆
-  const PAGE_SIZE = 30;
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [result, includedUsers, includedFams, includedBrands]);
-  const visibleSongs = useMemo(
-    () => filteredSongs.slice(0, visibleCount),
-    [filteredSongs, visibleCount],
-  );
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (visibleCount >= filteredSongs.length) return;
-    const node = sentinelRef.current;
-    if (!node) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setVisibleCount((c) => Math.min(c + PAGE_SIZE, filteredSongs.length));
-        }
-      },
-      { rootMargin: '400px' },
-    );
-    io.observe(node);
-    return () => io.disconnect();
-  }, [visibleCount, filteredSongs.length]);
-
+  // 使用 react-virtuoso 進行虛擬列表渲染，捨棄手動 IntersectionObserver 與 PAGE_SIZE
   // Modal 只列「當前比對的使用者」對這首歌的評分，不再撈全部公開使用者
   const handleSongClick = (song: CollabSong) => {
     setSelectedSong(song);
@@ -338,8 +347,8 @@ export default function CollaborationPlaylistPage() {
                 {error}
               </div>
             )}
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? '正在合併歌單...' : '合併歌單'}
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading || catalogLoading}>
+              {catalogLoading ? '正在載入歌曲目錄...' : loading ? '正在合併歌單...' : '合併歌單'}
             </button>
           </form>
         </div>
@@ -481,95 +490,73 @@ export default function CollaborationPlaylistPage() {
                     : '沒有符合「依使用者 / 依熟悉度 / 依品牌」條件的歌曲，調整 chip 試試。'}
                 </div>
               ) : (
-                visibleSongs.map((song) => {
-                  const brandClean = song.brand.replace('music_', '').toUpperCase();
+                <Virtuoso
+                  useWindowScroll
+                  data={filteredSongs}
+                  itemContent={(index, song) => {
+                    const brandClean = song.brand.replace('music_', '').toUpperCase();
 
-                  return (
-                    <div key={song.id} className="song-card" style={{ gap: '20px', cursor: 'pointer' }} onClick={() => handleSongClick(song)}>
-                      <div className="song-info">
-                        <div className="song-title-row">
-                          <span className="song-title">{song.title}</span>
-                          <span 
-                            className="song-badge badge-brand"
-                            style={{ 
-                              backgroundColor: getBrandColor(song.brand),
-                              color: getAccentTextColor(getBrandColor(song.brand))
-                            }}
-                          >
-                            {getBrandDisplayName(song.brand)}
-                          </span>
-                          {song.musicType.includes('solo') && (
-                            <span className="song-badge badge-type">SOLO</span>
-                          )}
-                          {song.musicType.includes('unit') && (
-                            <span className="song-badge badge-type">UNIT</span>
-                          )}
-                          {(song.lowestPitch || song.highestPitch) && (
-                            <span className="song-badge badge-pitch">
-                              音域: {song.lowestPitch || '--'} ~ {song.highestPitch || '--'}
+                    return (
+                      <div key={song.id} className="song-card" style={{ gap: '20px', cursor: 'pointer', marginBottom: '16px' }} onClick={() => handleSongClick(song)}>
+                        <div className="song-info">
+                          <div className="song-title-row">
+                            <span className="song-title">{song.title}</span>
+                            <span 
+                              className="song-badge badge-brand"
+                              style={{ 
+                                backgroundColor: getBrandColor(song.brand),
+                                color: getAccentTextColor(getBrandColor(song.brand))
+                              }}
+                            >
+                              {getBrandDisplayName(song.brand)}
                             </span>
-                          )}
+                            {song.musicType.includes('solo') && (
+                              <span className="song-badge badge-type">SOLO</span>
+                            )}
+                            {song.musicType.includes('unit') && (
+                              <span className="song-badge badge-type">UNIT</span>
+                            )}
+                            {(song.lowestPitch || song.highestPitch) && (
+                              <span className="song-badge badge-pitch">
+                                音域: {song.lowestPitch || '--'} ~ {song.highestPitch || '--'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="song-meta">
+                            {song.lyrics && <span>作詞: {song.lyrics} </span>}
+                            {song.composer && <span>/ 作曲: {song.composer} </span>}
+                            {song.arranger && <span>/ 編曲: {song.arranger}</span>}
+                          </div>
+                          <MemberToggle members={song.members} />
                         </div>
-                        <div className="song-meta">
-                          {song.lyrics && <span>作詞: {song.lyrics} </span>}
-                          {song.composer && <span>/ 作曲: {song.composer} </span>}
-                          {song.arranger && <span>/ 編曲: {song.arranger}</span>}
-                        </div>
-                        <MemberToggle members={song.members} />
-                      </div>
 
-                      {/* 顯示各使用者的熟悉度對照 — 沒評過的標 「—」 */}
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {result.users.map((user) => {
-                          const rating = song.ratings[user];
-                          const rated = rating != null;
-                          return (
-                            <div key={user} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user}</span>
-                              {rated ? (
-                                <span className={`familiarity-btn ${familiarityStates[rating]} active`} style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default' }}>
-                                  {familiarityLabels[rating]}
-                                </span>
-                              ) : (
-                                <span className="familiarity-btn" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default', opacity: 0.4 }}>
-                                  —
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
+                        {/* 顯示各使用者的熟悉度對照 — 沒評過的標 「—」 */}
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {result.users.map((user) => {
+                            const rating = song.ratings[user];
+                            const rated = rating != null;
+                            return (
+                              <div key={user} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user}</span>
+                                {rated ? (
+                                  <span className={`familiarity-btn ${familiarityStates[rating]} active`} style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default' }}>
+                                    {familiarityLabels[rating]}
+                                  </span>
+                                ) : (
+                                  <span className="familiarity-btn" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'default', opacity: 0.4 }}>
+                                    —
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  }}
+                />
               )}
 
-              {/* 漸進渲染哨兵 — 捲到此處再載入下一批 */}
-              {visibleCount < filteredSongs.length ? (
-                <div
-                  ref={sentinelRef}
-                  data-testid="collab-load-sentinel"
-                  style={{
-                    padding: '20px',
-                    textAlign: 'center',
-                    color: 'var(--text-muted)',
-                    fontSize: '13px',
-                  }}
-                >
-                  載入中… (還有 {filteredSongs.length - visibleCount} 首)
-                </div>
-              ) : filteredSongs.length > PAGE_SIZE ? (
-                <div
-                  style={{
-                    padding: '20px',
-                    textAlign: 'center',
-                    color: 'var(--text-muted)',
-                    fontSize: '12px',
-                  }}
-                >
-                  — 已顯示全部 {filteredSongs.length} 首 —
-                </div>
-              ) : null}
             </section>
           </div>
         )}

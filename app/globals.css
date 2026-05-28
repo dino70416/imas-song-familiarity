@@ -292,6 +292,51 @@ header h1 {
   cursor: pointer;
 }
 
+/* showRated=false 時點 chip 會閃爍 checkbox 引導視線 */
+.familiarity-unrated-toggle.is-flashing {
+  animation: famToggleFlash 0.4s ease-in-out 3;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin-left: 2px;
+}
+@keyframes famToggleFlash {
+  0%, 100% {
+    background-color: transparent;
+    color: var(--text-secondary);
+  }
+  50% {
+    background-color: var(--accent-color);
+    color: var(--accent-text-color, white);
+  }
+}
+
+/* chip disabled (showRated=false) — 灰掉 + 禁標 cursor,點擊不會切換選取狀態(在 onClick 內擋) */
+.familiarity-btn.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.familiarity-btn.is-disabled:hover {
+  /* 蓋掉 hover 變色,讓使用者更清楚知道是 disabled */
+  background-color: var(--bg-base);
+}
+
+/* 點 disabled chip 後跳出來的 inline 提示氣泡 */
+.familiarity-chip-hint {
+  font-size: 12px;
+  color: var(--accent-color);
+  background: var(--bg-base);
+  border: 1px solid var(--accent-color);
+  padding: 4px 10px;
+  border-radius: 16px;
+  animation: famChipHintFade 2.8s ease-in-out forwards;
+  white-space: nowrap;
+}
+@keyframes famChipHintFade {
+  0% { opacity: 0; transform: translateY(-4px); }
+  10%, 80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
 /* 第二排：依使用者標記的熟悉度過濾 */
 .familiarity-filter-panel {
   background-color: var(--bg-surface);

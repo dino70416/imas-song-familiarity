@@ -126,10 +126,23 @@ export default function SongFamiliarityHub() {
   const [selectedIdols, setSelectedIdols] = useState<string[]>([]);
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   // 下排：依「我自己標的熟悉度」過濾。值為 0|1|2|3|4(OR)；空陣列 = 不限。
-  // 「未評」永遠顯示(這個頁面當「待評清單」用);showRated 控制是否也顯示已評
+  // 「未評」永遠顯示(這個頁面當「待評清單」用);showRated 控制是否也顯示已填
   // 預設 showRated=false → 評過的歌就消失,清單只剩待評
   const [selectedFamiliarities, setSelectedFamiliarities] = useState<number[]>([]);
   const [showRated, setShowRated] = useState(false);
+  // 使用者在 showRated=false 時點 chip → 跳提示 + checkbox 閃爍引導視線
+  // 兩個 state 都會在 timer 過後自動清掉,讓 UI 自然 fade 回去
+  const [showChipHint, setShowChipHint] = useState(false);
+  const [flashShowRated, setFlashShowRated] = useState(false);
+  // 用 ref 抓住 timer id,元件卸載時清掉,避免 setState on unmounted
+  const hintTimerRef = useRef<number | null>(null);
+  const flashTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current !== null) window.clearTimeout(hintTimerRef.current);
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+    };
+  }, []);
   const [showPitchModal, setShowPitchModal] = useState(false);
   // 熟悉度定義說明卡 — 手機預設收起，桌面預設展開
   const [defsOpen, setDefsOpen] = useState(true);
@@ -484,13 +497,14 @@ export default function SongFamiliarityHub() {
       selectedIdols,
       selectedUnits,
     });
-    // 未評歌(無 row):永遠顯示 — 這個頁面當「待評清單」用
-    // 已評歌(0-4 row):只在 showRated=true 時顯示;若有 chip 再用 OR 過濾
+    // 未評歌(無 row):沒選 chip 時當「待評清單」永遠顯示;一旦選了 chip 就嚴格匹配,
+    //   未評不算任何熟悉度 → 隱藏(避免選「不太記得」還會跳出沒評過的歌)
+    // 已填歌(0-4 row):只在 showRated=true 時顯示;若有 chip 再用 OR 過濾
     const famSet = selectedFamiliarities.length > 0 ? new Set(selectedFamiliarities) : null;
     return upstream.filter((s) => {
       const myFam = selections[s.id];
-      if (myFam === undefined) return true; // 未評永遠顯示
-      if (!showRated) return false; // 已評預設隱藏
+      if (myFam === undefined) return famSet === null; // 有選 chip → 未評視為 mismatch
+      if (!showRated) return false; // 已填預設隱藏
       if (famSet === null) return true;
       return famSet.has(myFam);
     });
@@ -562,7 +576,7 @@ export default function SongFamiliarityHub() {
     selectedIdols.length > 0 ||
     selectedUnits.length > 0 ||
     selectedFamiliarities.length > 0 ||
-    showRated; // 勾「顯示已評」也算啟用篩選(預設為 false)
+    showRated; // 勾「顯示已填」也算啟用篩選(預設為 false)
 
   // 動態設定主題色（含所有衍生色）
   const currentThemeColor = session?.user?.themeColor || '#92cfbb';
@@ -729,33 +743,70 @@ export default function SongFamiliarityHub() {
               <button
                 key={v}
                 type="button"
-                className={`familiarity-btn state-${v} ${active ? 'active' : ''}`}
+                className={`familiarity-btn state-${v} ${active ? 'active' : ''} ${
+                  !showRated ? 'is-disabled' : ''
+                }`}
                 data-testid={`fam-filter-${v}`}
                 aria-pressed={active}
-                onClick={() =>
+                aria-disabled={!showRated}
+                title={
+                  !showRated
+                    ? '勾選「顯示已填」才能依熟悉度篩選'
+                    : undefined
+                }
+                onClick={() => {
+                  if (!showRated) {
+                    // 防連點:動畫播放中再點不重新觸發 — 避免:
+                    //   (a) 計時器重疊:第一個 timer 提早把後一次的 hint 收掉
+                    //   (b) state 從 true→true 不會 remount,CSS animation 無法 replay
+                    if (showChipHint || flashShowRated) return;
+                    setShowChipHint(true);
+                    setFlashShowRated(true);
+                    hintTimerRef.current = window.setTimeout(() => {
+                      setShowChipHint(false);
+                      hintTimerRef.current = null;
+                    }, 2800);
+                    flashTimerRef.current = window.setTimeout(() => {
+                      setFlashShowRated(false);
+                      flashTimerRef.current = null;
+                    }, 1200);
+                    return;
+                  }
                   setSelectedFamiliarities((prev) =>
                     prev.includes(v)
                       ? prev.filter((x) => x !== v)
                       : [...prev, v],
-                  )
-                }
+                  );
+                }}
               >
                 {label}
               </button>
             );
           })}
           <label
-            className="familiarity-unrated-toggle"
+            className={`familiarity-unrated-toggle ${
+              flashShowRated ? 'is-flashing' : ''
+            }`}
             data-testid="show-rated-toggle"
-            title="預設只顯示未評過的歌(當待評清單用);勾起來才會看到已評的歌"
+            title="預設只顯示未填過的歌(當待評清單用);勾起來才會看到已填的歌"
           >
             <input
               type="checkbox"
               checked={showRated}
               onChange={(e) => setShowRated(e.target.checked)}
             />
-            <span>顯示已評</span>
+            <span>顯示已填</span>
           </label>
+          {showChipHint && (
+            <span
+              className="familiarity-chip-hint"
+              role="status"
+              aria-live="polite"
+              data-testid="fam-chip-hint"
+            >
+              ↑ 勾「顯示已填」才能依熟悉度篩選
+            </span>
+          )}
           {/* 清除按鈕永遠 render(disabled 時 visibility hidden)避免 flex row reflow */}
           <button
             type="button"

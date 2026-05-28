@@ -11,6 +11,7 @@
     "sync:units": "ts-node --project scripts/tsconfig.json scripts/sync-units.ts",
     "sync:songs": "ts-node --project scripts/tsconfig.json scripts/scrape.ts",
     "sync:pitches": "ts-node --project scripts/tsconfig.json scripts/update-pitches.ts",
+    "seed:pitches": "ts-node --project scripts/tsconfig.json scripts/seed-pitch-map.ts",
     "sync:idol-images": "ts-node --project scripts/tsconfig.json scripts/sync-idol-images.ts",
     "fix:876": "ts-node --project scripts/tsconfig.json scripts/fix-876.ts",
     "test": "vitest run",

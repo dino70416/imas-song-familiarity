@@ -11,12 +11,13 @@ export async function POST(request: Request) {
     }
 
     const userId = session.user.id;
-    const { nickname, themeColor, isPublic } = await request.json();
+    const { nickname, themeColor, isPublic, isPublicPitchRange } = await request.json();
 
     if (
       !nickname || typeof nickname !== 'string' ||
       !themeColor || typeof themeColor !== 'string' ||
-      typeof isPublic !== 'boolean'
+      typeof isPublic !== 'boolean' ||
+      typeof isPublicPitchRange !== 'boolean'
     ) {
       return NextResponse.json({ error: '請求格式不正確' }, { status: 400 });
     }
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
         nickname: nickname.trim(),
         themeColor,
         isPublic,
+        isPublicPitchRange,
       },
     });
 
@@ -38,6 +40,7 @@ export async function POST(request: Request) {
       nickname: updatedUser.nickname,
       themeColor: updatedUser.themeColor,
       isPublic: updatedUser.isPublic,
+      isPublicPitchRange: updatedUser.isPublicPitchRange,
     });
   } catch (error: any) {
     return NextResponse.json(

@@ -15,10 +15,12 @@ model User {
   nickname   String
   shareCode  String          @unique
   themeColor String          @default("#92cfbb")
-  isPublic   Boolean         @default(false)
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  selections UserSelection[]
+  isPublic      Boolean         @default(false)
+  isPublicPitchRange Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  selections    UserSelection[]
+  vocalRange    UserVocalRange?
 }
 
 model Song {
@@ -109,3 +111,22 @@ model UserSelection {
 
   @@id([userId, songId])
 }
+
+model PitchToNumber {
+  pitch      String @id
+  scientific String
+  number     Int    @unique
+}
+
+model UserVocalRange {
+  userId             String @id @db.Uuid
+  comfortableHighest Int?   // e.g. 47 (hiG)
+  singableHighest    Int?   // e.g. 50 (hihiA#) (介在舒適與極限之間，能唱但不擅長)
+  limitHighest       Int?   // e.g. 52 (hihiC)
+  comfortableLowest  Int?   // e.g. 23 (mid1G)
+  singableLowest     Int?   // e.g. 20 (mid1E) (介在舒適與極限之間，能唱但不擅長)
+  limitLowest        Int?   // e.g. 16 (mid1C)
+  
+  user               User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+

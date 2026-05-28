@@ -61,7 +61,8 @@ export default function PlaylistList({ songs, idols, units }: Props) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedIdols, setSelectedIdols] = useState<string[]>([]);
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
-  // 公開歌單裡 familiarity 只會是 1-4(0 不會寫入 DB)，所以這裡也只開 4 個選項
+  // 公開歌單只展示「使用者會的歌」(server 端已 filter familiarity in [1,2,3,4])，
+  // 「不記得」(0) 雖然會寫入 DB,但在公開展示時刻意排除,所以這裡 chip 也只開 4 個
   const [selectedFamiliarities, setSelectedFamiliarities] = useState<number[]>([]);
 
   // 共用 hook：算 allowedProductions + 過濾偶像/組合 + 切換 brand 連帶清掉非法選取

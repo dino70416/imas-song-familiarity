@@ -277,6 +277,21 @@ header h1 {
   font-weight: 700;
 }
 
+/* 「顯示未評」 checkbox — 跟 chip 並列,desktop inline,mobile 跨整列(@media 中) */
+.familiarity-unrated-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.familiarity-unrated-toggle input[type=checkbox] {
+  cursor: pointer;
+}
+
 /* 第二排：依使用者標記的熟悉度過濾 */
 .familiarity-filter-panel {
   background-color: var(--bg-surface);
@@ -358,15 +373,26 @@ header h1 {
   .header-greeting {
     font-size: 12px;
   }
-  /* 只把「依熟悉度」(fam-filter) 套 5 等寬 grid — chip 都短(會唱/常聽…)排齊好看。
-     user-filter / brand-filter 因為 chip 名字長度不一(stress_user_XX、品牌全名),
-     繼續沿用 base 的 flex-wrap 自然斷行,不會被截字 */
-  .familiarity-filter-panel[data-testid="fam-filter"],
+  /* 只把「依熟悉度」(fam-filter / familiarity-filter) 套 grid — chip 都短(會唱/常聽…)排齊好看。
+     首頁 5 chip (1~4 + 不記得) 用 5 欄 × 1 行;「顯示未評」 checkbox 跨整列獨立
+     collab 4 chip(沒未評)用 4 欄 × 1 行 */
   .familiarity-filter-panel[data-testid="familiarity-filter"] {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 6px 4px;
     align-items: stretch;
+  }
+  .familiarity-filter-panel[data-testid="fam-filter"] {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px 4px;
+    align-items: stretch;
+  }
+  /* 「顯示未評」 checkbox 跨整列獨立放在 chip 下 */
+  .familiarity-filter-panel[data-testid="familiarity-filter"] .familiarity-unrated-toggle {
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin-left: 0;
   }
   .familiarity-filter-panel[data-testid="fam-filter"] .familiarity-filter-label,
   .familiarity-filter-panel[data-testid="familiarity-filter"] .familiarity-filter-label {

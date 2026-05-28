@@ -48,21 +48,12 @@ export async function POST(request: Request) {
     }
 
     // 使用 Prisma 交易確保批次操作原子性
+    // familiarity 0 也是合法狀態(「不記得」explicit),要寫入 DB;只有「未評」(沒按過任何鈕)才不會送進來
     await prisma.$transaction(
       body.map((item: { songId: string; familiarity: number }) => {
         const { songId, familiarity } = item;
 
-        // 若熟悉度為 0（不記得），從資料庫中刪除記錄以節省儲存空間
-        if (familiarity === 0) {
-          return prisma.userSelection.deleteMany({
-            where: {
-              userId,
-              songId,
-            },
-          });
-        }
-
-        // 若為 1~4，執行 Upsert 寫入或更新
+        // 0~4 都 upsert (0 = 不記得 explicit, 1~4 = 程度遞減)
         return prisma.userSelection.upsert({
           where: {
             userId_songId: {

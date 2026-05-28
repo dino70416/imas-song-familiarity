@@ -31,9 +31,22 @@ interface SongDetailModalProps {
   currentFamiliarity?: number;
   /** 點按鈕改熟悉度時觸發 — 帶上 modal 才有 5 顆評分鈕 */
   onSelectFamiliarity?: (familiarity: number) => void;
+  /**
+   * 覆寫「公開使用者」區段 — 提供時不打 /api/songs/{id}/users,直接渲染傳進來的列表
+   * 用途:/collab 想顯示「目前比對的這群人對這首歌的熟悉度」而非全站公開
+   */
+  participants?: PublicUser[];
+  /** 區段標題覆寫,預設「公開歌單中會唱 / 常聽」 */
+  participantsTitle?: string;
 }
 
-const FAM_LABELS: Record<number, string> = { 1: '會唱', 2: '常聽' };
+// 包含全部熟悉度等級 — collab 場景會用到 3 / 4;首頁 / 公開歌單只會有 1 / 2(API 端 filter)
+const FAM_LABELS: Record<number, string> = {
+  1: '會唱',
+  2: '常聽',
+  3: '聽過',
+  4: '模糊',
+};
 
 // modal 內部 5 顆評分鈕設定（跟首頁卡片一致）
 const RATING_OPTIONS = [
@@ -60,6 +73,8 @@ export default function SongDetailModal({
   onClose,
   currentFamiliarity = 0,
   onSelectFamiliarity,
+  participants,
+  participantsTitle,
 }: SongDetailModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [publicUsers, setPublicUsers] = useState<PublicUser[]>([]);
@@ -95,9 +110,16 @@ export default function SongDetailModal({
   }, [song]);
 
   // 每次開新歌曲,重置 state 並拉公開使用者 (有 cache 就直出,避免每點 1 首打 1 次 API)
+  // 若呼叫端提供 participants override (例如 /collab 想顯示比對中的人) → skip fetch
   useEffect(() => {
     if (!song) return;
     setAutoplayFailed(false);
+    if (participants) {
+      // 由呼叫端控制要顯示什麼人,modal 自己不發請求
+      setPublicUsers(participants);
+      setLoadingUsers(false);
+      return;
+    }
     const cached = publicUsersCache.get(song.id);
     if (cached) {
       setPublicUsers(cached);
@@ -116,7 +138,7 @@ export default function SongDetailModal({
       })
       .catch(() => {})
       .finally(() => setLoadingUsers(false));
-  }, [song?.id]);
+  }, [song?.id, participants]);
 
   // 切歌時重置折疊狀態 + 判斷成員是否需要折疊
   // 規則：成員數 > 6 預設折，按 "+ N 人" 展開
@@ -278,7 +300,7 @@ export default function SongDetailModal({
             {/* 公開會唱 / 常聽的人 — > 10 人折疊 */}
             <section className="song-detail-section">
               <h3 className="song-detail-section-title">
-                公開歌單中會唱 / 常聽
+                {participantsTitle ?? '公開歌單中會唱 / 常聽'}
                 {!loadingUsers && publicUsers.length > 0 && ` (${publicUsers.length})`}
               </h3>
               {loadingUsers ? (

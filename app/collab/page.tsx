@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { Virtuoso } from 'react-virtuoso';
 import MemberToggle from '@/components/MemberToggle';
 import UserPickerModal, { PickerUser } from '@/components/UserPickerModal';
+import SongDetailModal from '@/components/SongDetailModal';
 import { buildThemeVars, getBrandColor, getBrandDisplayName, getBrandShortName, getAccentTextColor } from '@/lib/themeUtils';
 
 
@@ -19,7 +20,9 @@ interface CollabSong {
   arranger: string | null;
   lowestPitch: string | null;
   highestPitch: string | null;
-  members: Array<{ name: string; cvName: string | null }>;
+  youtubeIds: string | null;
+  members: Array<{ id?: string; name: string; cvName: string | null }>;
+  units?: Array<{ id: string; name: string }>;
   ratings: Record<string, number>;
 }
 
@@ -47,10 +50,8 @@ export default function CollaborationPlaylistPage() {
       }
     : null;
 
-  // Song users modal states
+  // 點 song card 開試聽 modal — 比對中的人 + ratings 會即時組成 participants 傳進 modal
   const [selectedSong, setSelectedSong] = useState<CollabSong | null>(null);
-  const [songUsers, setSongUsers] = useState<Array<{nickname: string, themeColor: string, familiarity: number}>>([]);
-  const [loadingSongUsers, setLoadingSongUsers] = useState(false);
 
   // 結果上的二次篩選：依使用者 / 依熟悉度 / 依品牌
   // 三者都空 = 不限；同一欄 OR，欄位之間 AND
@@ -186,20 +187,19 @@ export default function CollaborationPlaylistPage() {
   }, [result]);
 
   // 使用 react-virtuoso 進行虛擬列表渲染，捨棄手動 IntersectionObserver 與 PAGE_SIZE
-  // Modal 只列「當前比對的使用者」對這首歌的評分，不再撈全部公開使用者
-  const handleSongClick = (song: CollabSong) => {
-    setSelectedSong(song);
-    const list = Object.entries(song.ratings).map(([nickname, fam]) => {
-      // 自己 + 已選其他人 — 找該暱稱的 themeColor
-      const allParticipants: PickerUser[] = self ? [self, ...selectedUsers] : selectedUsers;
+
+  // 點 song card 後算出「比對中的人對這首歌的熟悉度」(含 themeColor),傳進 SongDetailModal
+  // 用 useMemo 隨 selectedSong / selectedUsers / self 變動重算
+  const modalParticipants = useMemo(() => {
+    if (!selectedSong) return undefined;
+    const allParticipants: PickerUser[] = self ? [self, ...selectedUsers] : selectedUsers;
+    return Object.entries(selectedSong.ratings).map(([nickname, fam]) => {
       const themeColor =
         allParticipants.find((u) => u.nickname === nickname)?.themeColor ??
         'var(--accent-color)';
       return { nickname, themeColor, familiarity: fam as number };
     });
-    setSongUsers(list);
-    setLoadingSongUsers(false);
-  };
+  }, [selectedSong, self, selectedUsers]);
 
   const familiarityLabels: Record<number, string> = {
     1: '會唱',
@@ -553,7 +553,7 @@ export default function CollaborationPlaylistPage() {
                     const brandClean = song.brand.replace('music_', '').toUpperCase();
 
                     return (
-                      <div key={song.id} className="song-card" style={{ gap: '20px', cursor: 'pointer', marginBottom: '16px' }} onClick={() => handleSongClick(song)}>
+                      <div key={song.id} className="song-card" style={{ gap: '20px', cursor: 'pointer', marginBottom: '16px' }} onClick={() => setSelectedSong(song)}>
                         <div className="song-info">
                           <div className="song-title-row">
                             <span className="song-title">{song.title}</span>
@@ -627,38 +627,13 @@ export default function CollaborationPlaylistPage() {
         onConfirm={(picks) => setSelectedUsers(picks)}
       />
 
-      {/* 顯示特定歌曲的公開使用者模態框 */}
-      {selectedSong && (
-        <div className="modal-overlay" onClick={() => setSelectedSong(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginBottom: '4px' }}>{selectedSong.title}</h2>
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px' }}>
-              當前比對的使用者裡，誰會這首歌
-            </div>
-            {loadingSongUsers ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>載入中...</div>
-            ) : songUsers.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>當前比對的使用者都沒有標記過這首歌。</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
-                {songUsers.map((u, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--bg-base)', borderRadius: '8px', borderLeft: `4px solid ${u.themeColor}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{u.nickname}</span>
-                    </div>
-                    <span className={`familiarity-btn ${familiarityStates[u.familiarity]} active`} style={{ padding: '4px 12px', fontSize: '12px', cursor: 'default' }}>
-                      {familiarityLabels[u.familiarity]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="modal-actions" style={{ marginTop: '24px' }}>
-              <button className="btn btn-secondary" onClick={() => setSelectedSong(null)}>關閉</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 歌曲詳細 + 試聽 modal — collab 場景把「公開使用者」區塊 override 成比對中的人 */}
+      <SongDetailModal
+        song={selectedSong}
+        onClose={() => setSelectedSong(null)}
+        participants={modalParticipants}
+        participantsTitle="當前比對的使用者"
+      />
     </div>
   );
 }

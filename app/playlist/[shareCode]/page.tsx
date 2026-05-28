@@ -46,6 +46,7 @@ export default async function PublicPlaylistPage({ params }: PageProps) {
   });
 
   // 攤平成 client component 用的 shape
+  // youtubeIds 是 song 上的欄位(Prisma include 已含 song),不需要改 select 範圍
   const songs: PlaylistSong[] = selections.map((sel) => ({
     id: sel.song.id,
     title: sel.song.title,
@@ -56,6 +57,7 @@ export default async function PublicPlaylistPage({ params }: PageProps) {
     arranger: sel.song.arranger,
     lowestPitch: sel.song.lowestPitch,
     highestPitch: sel.song.highestPitch,
+    youtubeIds: sel.song.youtubeIds,
     members: sel.song.members.map((m) => ({
       id: m.member.id,
       name: m.member.name,

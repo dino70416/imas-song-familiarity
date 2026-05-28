@@ -6,6 +6,7 @@ import BrandPicker from '@/components/BrandPicker';
 import IdolPickerModal from '@/components/IdolPickerModal';
 import UnitPickerModal from '@/components/UnitPickerModal';
 import TypePicker from '@/components/TypePicker';
+import SongDetailModal from '@/components/SongDetailModal';
 import { getBrandColor, getBrandDisplayName, getAccentTextColor } from '@/lib/themeUtils';
 import { BRAND_VALUES } from '@/lib/brandMap';
 import { useBrandFilter } from '@/lib/useBrandFilter';
@@ -21,6 +22,7 @@ export interface PlaylistSong {
   arranger: string | null;
   lowestPitch: string | null;
   highestPitch: string | null;
+  youtubeIds: string | null;
   members: Array<{ id?: string; name: string; cvName: string | null }>;
   units: Array<{ id: string; name: string }>;
   familiarity: number; // 1-4
@@ -64,6 +66,8 @@ export default function PlaylistList({ songs, idols, units }: Props) {
   // 公開歌單只展示「使用者會的歌」(server 端已 filter familiarity in [1,2,3,4])，
   // 「不記得」(0) 雖然會寫入 DB,但在公開展示時刻意排除,所以這裡 chip 也只開 4 個
   const [selectedFamiliarities, setSelectedFamiliarities] = useState<number[]>([]);
+  // 點 song title 開試聽 modal — 公開歌單只能看不能改評分,所以不傳 onSelectFamiliarity
+  const [selectedSong, setSelectedSong] = useState<PlaylistSong | null>(null);
 
   // 共用 hook：算 allowedProductions + 過濾偶像/組合 + 切換 brand 連帶清掉非法選取
   const { filteredIdols, filteredUnits, handleBrandsChange } = useBrandFilter({
@@ -264,7 +268,14 @@ export default function PlaylistList({ songs, idols, units }: Props) {
             <div key={song.id} className="song-card">
               <div className="song-info">
                 <div className="song-title-row">
-                  <span className="song-title">{song.title}</span>
+                  <button
+                    type="button"
+                    className="song-title song-title-btn"
+                    onClick={() => setSelectedSong(song)}
+                    title="點擊查看詳細資料與試聽"
+                  >
+                    {song.title}
+                  </button>
                   <span
                     className="song-badge badge-brand"
                     style={{
@@ -306,6 +317,12 @@ export default function PlaylistList({ songs, idols, units }: Props) {
           ))
         )}
       </section>
+
+      {/* 試聽 modal — 公開歌單僅讀,不傳 onSelectFamiliarity */}
+      <SongDetailModal
+        song={selectedSong}
+        onClose={() => setSelectedSong(null)}
+      />
     </>
   );
 }

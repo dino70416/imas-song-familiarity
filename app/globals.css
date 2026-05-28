@@ -1710,6 +1710,16 @@ header h1 {
   background: var(--color-state-2-glow);
   color: var(--color-state-2);
 }
+/* /collab 場景會出現 fam 3 / 4 的 participants(首頁 API filter 在 1-2,不會走到這),
+   補齊樣式避免在共同歌單的模態框出現透明背景 */
+.user-fam-badge.state-3 {
+  background: var(--color-state-3-glow);
+  color: var(--color-state-3);
+}
+.user-fam-badge.state-4 {
+  background: var(--color-state-4-glow);
+  color: var(--color-state-4);
+}
 
 /* YouTube embed */
 .song-detail-video-wrap {

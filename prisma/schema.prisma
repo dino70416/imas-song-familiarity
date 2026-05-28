@@ -20,6 +20,7 @@ model User {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   selections    UserSelection[]
+  vocalRange    UserVocalRange?
 }
 
 model Song {
@@ -125,5 +126,7 @@ model UserVocalRange {
   comfortableLowest  Int?   // e.g. 23 (mid1G)
   singableLowest     Int?   // e.g. 20 (mid1E) (介在舒適與極限之間，能唱但不擅長)
   limitLowest        Int?   // e.g. 16 (mid1C)
+  
+  user               User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

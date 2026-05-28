@@ -8,39 +8,44 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     const currentUserId = session?.user?.id;
 
+    // 一次 Query 帶回使用者與音域設定，減少資料庫查詢次數
     const publicUsers = await prisma.user.findMany({
       where: {
         isPublicPitchRange: true,
         ...(currentUserId ? { id: { not: currentUserId } } : {})
       },
-      select: { id: true, nickname: true, username: true }
+      include: {
+        vocalRange: true
+      }
     });
 
-    const userIds = publicUsers.map(u => u.id);
-
-    const vocalRanges = await prisma.userVocalRange.findMany({
-      where: { userId: { in: userIds } }
-    });
-
-    // Combine users and their ranges
-    const result = publicUsers.map(user => {
-      const range = vocalRanges.find(r => r.userId === user.id);
-      return {
-        userId: user.id,
-        nickname: user.nickname || user.username,
-        comfortableLowest: range?.comfortableLowest ?? null,
-        comfortableHighest: range?.comfortableHighest ?? null,
-        singableLowest: range?.singableLowest ?? null,
-        singableHighest: range?.singableHighest ?? null,
-        limitLowest: range?.limitLowest ?? null,
-        limitHighest: range?.limitHighest ?? null,
-      };
-    }).filter(item => {
-      // Only keep users who have mapped at least one vocal pitch boundary
-      return item.comfortableLowest !== null || item.comfortableHighest !== null ||
-        item.singableLowest !== null || item.singableHighest !== null ||
-        item.limitLowest !== null || item.limitHighest !== null;
-    });
+    // 過濾掉沒有 vocalRange 或六個音域指標皆為 null 的不活躍使用者，並完成 Map 輸出
+    const result = publicUsers
+      .filter(user => {
+        const range = user.vocalRange;
+        if (!range) return false;
+        return (
+          range.comfortableLowest !== null ||
+          range.comfortableHighest !== null ||
+          range.singableLowest !== null ||
+          range.singableHighest !== null ||
+          range.limitLowest !== null ||
+          range.limitHighest !== null
+        );
+      })
+      .map(user => {
+        const range = user.vocalRange!;
+        return {
+          userId: user.id,
+          nickname: user.nickname || user.username,
+          comfortableLowest: range.comfortableLowest,
+          comfortableHighest: range.comfortableHighest,
+          singableLowest: range.singableLowest,
+          singableHighest: range.singableHighest,
+          limitLowest: range.limitLowest,
+          limitHighest: range.limitHighest,
+        };
+      });
 
     return NextResponse.json(result);
   } catch (error: any) {
@@ -50,3 +55,4 @@ export async function GET() {
     );
   }
 }
+

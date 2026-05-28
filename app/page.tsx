@@ -128,7 +128,7 @@ export default function SongFamiliarityHub() {
   // 下排：依「我自己標的熟悉度」過濾。值為 0|1|2|3|4(OR)；空陣列 = 不限。
   // 0 在資料模型上等同未評(state 0 不存 DB)，所以「不記得 / 未評」是同一桶。
   const [selectedFamiliarities, setSelectedFamiliarities] = useState<number[]>([]);
-  const [showPitchModal, setShowPitchModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   // 熟悉度定義說明卡 — 手機預設收起，桌面預設展開
   const [defsOpen, setDefsOpen] = useState(true);
   useEffect(() => {
@@ -594,8 +594,8 @@ export default function SongFamiliarityHub() {
             <a href="/guess" className="btn" style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold' }}>
               🎵 猜歌遊戲
             </a>
-            <button onClick={() => setShowPitchModal(true)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-              音域對照表
+            <button onClick={() => setShowAboutModal(true)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+              關於我們
             </button>
             {status === 'authenticated' && session?.user ? (
               <>
@@ -1227,39 +1227,104 @@ export default function SongFamiliarityHub() {
           </div>
         </div>
       )}
-      {/* 音域對照表彈出視窗 */}
-      {showPitchModal && (
-        <div className="modal-overlay" onClick={() => setShowPitchModal(false)}>
-          <div className="modal-content pitch-modal" onClick={(e) => e.stopPropagation()}>
+
+      {/* 關於我們彈出視窗 */}
+      {showAboutModal && (
+        <div className="modal-overlay" onClick={() => setShowAboutModal(false)} style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+            backgroundColor: 'var(--bg-surface, #fff)',
+            padding: '24px',
+            borderRadius: 'var(--radius-lg, 12px)',
+            maxWidth: '1000px',
+            width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid var(--border-color, #e5e7eb)',
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px' }}>音域對照表 (由高至低)</h2>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>關於我們</h2>
               <button
-                onClick={() => setShowPitchModal(false)}
+                type="button"
+                onClick={() => setShowAboutModal(false)}
                 className="btn btn-secondary"
                 style={{ padding: '4px 10px', fontSize: '12px' }}
               >
                 關閉
               </button>
             </div>
-            <div className="pitch-table-container">
-              <table className="pitch-table">
-                <thead>
-                  <tr>
-                    <th>日文音名</th>
-                    <th>科學音名</th>
-                    <th>音高順序</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pitchHierarchy.map((p) => (
-                    <tr key={p.jp}>
-                      <td style={{ fontWeight: '500' }}>{p.jp}</td>
-                      <td>{p.en}</td>
-                      <td style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>{p.order}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', lineHeight: '1.8', fontSize: '14px', color: 'var(--text-primary)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  此網頁是基於{' '}
+                  <a
+                    href="https://docs.google.com/spreadsheets/d/1326h1mhWc88WrnRSrJCUMr3F9_3qJJ-fQzQYKseJkoo/edit?usp=sharing"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--accent-color)', textDecoration: 'underline', fontWeight: 500 }}
+                  >
+                    im@s 曲熟悉度表單
+                  </a>
+                  ，由幾位同好工程師改良製作的非營利系統。
+                </div>
+                <div>
+                  旨為提供製作人們在日卡時作為自己的選曲參考，以及挑選團內盡可能多人熟悉的曲目。
+                </div>
+                <div style={{ fontWeight: 600 }}>
+                  希望大家能唱更多im@s的歌！
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <strong>資料來源：</strong>
+                <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <li>
+                    <a
+                      href="https://idolmaster-official.jp/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+                    >
+                      【公式】アイドルマスター ポータル（アイマス）
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://x.com/Mas_Kara_Card"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+                    >
+                      アイドルマスター楽曲しばりカラオケBOT
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://fujiwarahaji.me/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+                    >
+                      アイマス楽曲DB ふじわらはじめ - アイドルマスターの楽曲情報をまとめたサイト
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <strong>系統開發人員：</strong>Dino、Pararu、Azusa
+              </div>
             </div>
           </div>
         </div>

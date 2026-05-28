@@ -1,11 +1,14 @@
 import React, { useEffect } from 'react';
+import { Song } from '@/types/game';
+import { getBrandColor } from '@/lib/themeUtils';
 
 type GameOverModalProps = {
   score: number;
+  correctAnswer?: Song | null;
   onRestart: () => void;
 };
 
-export default function GameOverModal({ score, onRestart }: GameOverModalProps) {
+export default function GameOverModal({ score, correctAnswer, onRestart }: GameOverModalProps) {
   // Handle Escape key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -40,6 +43,29 @@ export default function GameOverModal({ score, onRestart }: GameOverModalProps) 
             {score}
           </div>
         </div>
+        
+        {correctAnswer && (
+          <div style={{ 
+            marginBottom: '32px', 
+            textAlign: 'center', 
+            backgroundColor: 'rgba(0,0,0,0.02)', 
+            padding: '16px', 
+            borderRadius: '16px', 
+            border: `2px solid ${getBrandColor(correctAnswer.brand)}`,
+            boxShadow: `0 4px 12px ${getBrandColor(correctAnswer.brand)}22`
+          }}>
+            <p style={{ fontSize: '14px', color: '#dc2626', marginBottom: '8px', fontWeight: 'bold' }}>正確答案是</p>
+            <p style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '4px' }}>{correctAnswer.title}</p>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+              {correctAnswer.units && correctAnswer.units.length > 0 
+                ? correctAnswer.units.map(u => u.name).join('、')
+                : (correctAnswer.members && correctAnswer.members.length > 0
+                    ? correctAnswer.members.map(m => m.name).join('、')
+                    : '群星 / 其他')}
+            </p>
+          </div>
+        )}
+
         <div className="modal-actions" style={{ justifyContent: 'center' }}>
           <button 
             className="btn btn-primary" 

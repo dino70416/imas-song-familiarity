@@ -174,7 +174,11 @@ export default function GameClient() {
       )}
 
       {gameState === 'gameover' && (
-        <GameOverModal score={score} onRestart={startGame} />
+        <GameOverModal 
+          score={score} 
+          correctAnswer={currentQuestion.answer}
+          onRestart={startGame} 
+        />
       )}
     </div>
   );

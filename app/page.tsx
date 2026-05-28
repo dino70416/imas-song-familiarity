@@ -126,10 +126,24 @@ export default function SongFamiliarityHub() {
   const [selectedIdols, setSelectedIdols] = useState<string[]>([]);
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   // 下排：依「我自己標的熟悉度」過濾。值為 0|1|2|3|4(OR)；空陣列 = 不限。
-  // 「未評」永遠顯示(這個頁面當「待評清單」用);showRated 控制是否也顯示已評
+  // 「未評」永遠顯示(這個頁面當「待評清單」用);showRated 控制是否也顯示已填
   // 預設 showRated=false → 評過的歌就消失,清單只剩待評
   const [selectedFamiliarities, setSelectedFamiliarities] = useState<number[]>([]);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [showRated, setShowRated] = useState(false);
+  // 使用者在 showRated=false 時點 chip → 跳提示 + checkbox 閃爍引導視線
+  // 兩個 state 都會在 timer 過後自動清掉,讓 UI 自然 fade 回去
+  const [showChipHint, setShowChipHint] = useState(false);
+  const [flashShowRated, setFlashShowRated] = useState(false);
+  // 用 ref 抓住 timer id,元件卸載時清掉,避免 setState on unmounted
+  const hintTimerRef = useRef<number | null>(null);
+  const flashTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current !== null) window.clearTimeout(hintTimerRef.current);
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+    };
+  }, []);
   const [showPitchModal, setShowPitchModal] = useState(false);
   // 熟悉度定義說明卡 — 手機預設收起，桌面預設展開
   const [defsOpen, setDefsOpen] = useState(true);
@@ -168,7 +182,8 @@ export default function SongFamiliarityHub() {
   const [nicknameInput, setNicknameInput] = useState('');
   const [themeColorInput, setThemeColorInput] = useState('#92cfbb');
   const [isPublicInput, setIsPublicInput] = useState(false);
-  const [idolColors, setIdolColors] = useState<Array<{name: string, color: string}>>([]);
+  const [isPublicPitchRangeInput, setIsPublicPitchRangeInput] = useState(false);
+  const [idolColors, setIdolColors] = useState<Array<{ name: string, color: string }>>([]);
   const [colorSearchQuery, setColorSearchQuery] = useState('');
   const [showColorSuggestions, setShowColorSuggestions] = useState(false);
 
@@ -176,7 +191,7 @@ export default function SongFamiliarityHub() {
     fetch('/api/colors')
       .then(res => res.json())
       .then(data => { if (Array.isArray(data)) setIdolColors(data); })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const [authError, setAuthError] = useState('');
@@ -270,7 +285,7 @@ export default function SongFamiliarityHub() {
           // 合併本機尚未同步的變更 (若有)
           const localStored = localStorage.getItem('guest_selections');
           const localData = localStored ? JSON.parse(localStored) : {};
-          
+
           const merged = { ...cloudSelections, ...localData };
           setSelections(merged);
 
@@ -432,7 +447,12 @@ export default function SongFamiliarityHub() {
       const res = await fetch('/api/user/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname: nicknameInput, themeColor: themeColorInput, isPublic: isPublicInput }),
+        body: JSON.stringify({
+          nickname: nicknameInput,
+          themeColor: themeColorInput,
+          isPublic: isPublicInput,
+          isPublicPitchRange: isPublicPitchRangeInput,
+        }),
       });
 
       const data = await res.json();
@@ -445,6 +465,7 @@ export default function SongFamiliarityHub() {
           nickname: nicknameInput,
           themeColor: themeColorInput,
           isPublic: isPublicInput,
+          isPublicPitchRange: isPublicPitchRangeInput,
         });
         setTimeout(() => {
           setShowSettingsModal(false);
@@ -462,6 +483,7 @@ export default function SongFamiliarityHub() {
       setNicknameInput(session.user.nickname || session.user.username);
       setThemeColorInput(session.user.themeColor || '#92cfbb');
       setIsPublicInput(session.user.isPublic || false);
+      setIsPublicPitchRangeInput(session.user.isPublicPitchRange || false);
       setColorSearchQuery('');
       setSettingsError('');
       setSettingsSuccess('');
@@ -484,13 +506,14 @@ export default function SongFamiliarityHub() {
       selectedIdols,
       selectedUnits,
     });
-    // 未評歌(無 row):永遠顯示 — 這個頁面當「待評清單」用
-    // 已評歌(0-4 row):只在 showRated=true 時顯示;若有 chip 再用 OR 過濾
+    // 未評歌(無 row):沒選 chip 時當「待評清單」永遠顯示;一旦選了 chip 就嚴格匹配,
+    //   未評不算任何熟悉度 → 隱藏(避免選「不太記得」還會跳出沒評過的歌)
+    // 已填歌(0-4 row):只在 showRated=true 時顯示;若有 chip 再用 OR 過濾
     const famSet = selectedFamiliarities.length > 0 ? new Set(selectedFamiliarities) : null;
     return upstream.filter((s) => {
       const myFam = selections[s.id];
-      if (myFam === undefined) return true; // 未評永遠顯示
-      if (!showRated) return false; // 已評預設隱藏
+      if (myFam === undefined) return famSet === null; // 有選 chip → 未評視為 mismatch
+      if (!showRated) return false; // 已填預設隱藏
       if (famSet === null) return true;
       return famSet.has(myFam);
     });
@@ -562,7 +585,7 @@ export default function SongFamiliarityHub() {
     selectedIdols.length > 0 ||
     selectedUnits.length > 0 ||
     selectedFamiliarities.length > 0 ||
-    showRated; // 勾「顯示已評」也算啟用篩選(預設為 false)
+    showRated; // 勾「顯示已填」也算啟用篩選(預設為 false)
 
   // 動態設定主題色（含所有衍生色）
   const currentThemeColor = session?.user?.themeColor || '#92cfbb';
@@ -588,8 +611,8 @@ export default function SongFamiliarityHub() {
             <a href="/guess" className="btn" style={{ padding: '6px 12px', fontSize: '12px', backgroundColor: '#8b5cf6', color: 'white', fontWeight: 'bold' }}>
               🎵 猜歌遊戲
             </a>
-            <button onClick={() => setShowPitchModal(true)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-              音域對照表
+            <button onClick={() => setShowAboutModal(true)} className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+              關於我們
             </button>
             {status === 'authenticated' && session?.user ? (
               <>
@@ -601,6 +624,9 @@ export default function SongFamiliarityHub() {
                 </a>
                 <a href="/collab" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
                   共同歌單
+                </a>
+                <a href="/pitch-adjustment" className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                  音域設定
                 </a>
                 <button onClick={() => signOut({ callbackUrl: window.location.origin })} className="btn btn-danger" style={{ padding: '6px 12px', fontSize: '12px' }}>
                   登出
@@ -729,33 +755,68 @@ export default function SongFamiliarityHub() {
               <button
                 key={v}
                 type="button"
-                className={`familiarity-btn state-${v} ${active ? 'active' : ''}`}
+                className={`familiarity-btn state-${v} ${active ? 'active' : ''} ${!showRated ? 'is-disabled' : ''
+                  }`}
                 data-testid={`fam-filter-${v}`}
                 aria-pressed={active}
-                onClick={() =>
+                aria-disabled={!showRated}
+                title={
+                  !showRated
+                    ? '勾選「顯示已填」才能依熟悉度篩選'
+                    : undefined
+                }
+                onClick={() => {
+                  if (!showRated) {
+                    // 防連點:動畫播放中再點不重新觸發 — 避免:
+                    //   (a) 計時器重疊:第一個 timer 提早把後一次的 hint 收掉
+                    //   (b) state 從 true→true 不會 remount,CSS animation 無法 replay
+                    if (showChipHint || flashShowRated) return;
+                    setShowChipHint(true);
+                    setFlashShowRated(true);
+                    hintTimerRef.current = window.setTimeout(() => {
+                      setShowChipHint(false);
+                      hintTimerRef.current = null;
+                    }, 2800);
+                    flashTimerRef.current = window.setTimeout(() => {
+                      setFlashShowRated(false);
+                      flashTimerRef.current = null;
+                    }, 1200);
+                    return;
+                  }
                   setSelectedFamiliarities((prev) =>
                     prev.includes(v)
                       ? prev.filter((x) => x !== v)
                       : [...prev, v],
-                  )
-                }
+                  );
+                }}
               >
                 {label}
               </button>
             );
           })}
           <label
-            className="familiarity-unrated-toggle"
+            className={`familiarity-unrated-toggle ${flashShowRated ? 'is-flashing' : ''
+              }`}
             data-testid="show-rated-toggle"
-            title="預設只顯示未評過的歌(當待評清單用);勾起來才會看到已評的歌"
+            title="預設只顯示未填過的歌(當待評清單用);勾起來才會看到已填的歌"
           >
             <input
               type="checkbox"
               checked={showRated}
               onChange={(e) => setShowRated(e.target.checked)}
             />
-            <span>顯示已評</span>
+            <span>顯示已填</span>
           </label>
+          {showChipHint && (
+            <span
+              className="familiarity-chip-hint"
+              role="status"
+              aria-live="polite"
+              data-testid="fam-chip-hint"
+            >
+              ↑ 勾「顯示已填」才能依熟悉度篩選
+            </span>
+          )}
           {/* 清除按鈕永遠 render(disabled 時 visibility hidden)避免 flex row reflow */}
           <button
             type="button"
@@ -877,9 +938,9 @@ export default function SongFamiliarityHub() {
                       >
                         {song.title}
                       </button>
-                      <span 
+                      <span
                         className="song-badge badge-brand"
-                        style={{ 
+                        style={{
                           backgroundColor: getBrandColor(song.brand),
                           color: getAccentTextColor(getBrandColor(song.brand))
                         }}
@@ -1156,8 +1217,8 @@ export default function SongFamiliarityHub() {
                           .filter(c => c.name.toLowerCase().includes(colorSearchQuery.toLowerCase()))
                           .slice(0, 8)
                           .map(c => (
-                            <div 
-                              key={c.name} 
+                            <div
+                              key={c.name}
                               className="autocomplete-item"
                               onClick={() => {
                                 setThemeColorInput(c.color);
@@ -1168,13 +1229,13 @@ export default function SongFamiliarityHub() {
                               <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: c.color, marginRight: '8px', borderRadius: '50%' }}></span>
                               {c.name} ({c.color})
                             </div>
-                        ))}
+                          ))}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="form-group">
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
                   <input
                     type="checkbox"
@@ -1183,6 +1244,15 @@ export default function SongFamiliarityHub() {
                     style={{ width: '16px', height: '16px' }}
                   />
                   <span>公開我的歌單（允許其他人在歌曲統計中看到我）</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={isPublicPitchRangeInput}
+                    onChange={(e) => setIsPublicPitchRangeInput(e.target.checked)}
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <span>公開我的音域（允許其他人在音高對照表中參考我）</span>
                 </label>
               </div>
               <div className="form-group">
@@ -1231,39 +1301,104 @@ export default function SongFamiliarityHub() {
           </div>
         </div>
       )}
-      {/* 音域對照表彈出視窗 */}
-      {showPitchModal && (
-        <div className="modal-overlay" onClick={() => setShowPitchModal(false)}>
-          <div className="modal-content pitch-modal" onClick={(e) => e.stopPropagation()}>
+
+      {/* 關於我們彈出視窗 */}
+      {showAboutModal && (
+        <div className="modal-overlay" onClick={() => setShowAboutModal(false)} style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+            backgroundColor: 'var(--bg-surface, #fff)',
+            padding: '24px',
+            borderRadius: 'var(--radius-lg, 12px)',
+            maxWidth: '1000px',
+            width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid var(--border-color, #e5e7eb)',
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px' }}>音域對照表 (由高至低)</h2>
-              <button 
-                onClick={() => setShowPitchModal(false)} 
-                className="btn btn-secondary" 
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>關於我們</h2>
+              <button
+                type="button"
+                onClick={() => setShowAboutModal(false)}
+                className="btn btn-secondary"
                 style={{ padding: '4px 10px', fontSize: '12px' }}
               >
                 關閉
               </button>
             </div>
-            <div className="pitch-table-container">
-              <table className="pitch-table">
-                <thead>
-                  <tr>
-                    <th>日文音名</th>
-                    <th>科學音名</th>
-                    <th>音高順序</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pitchHierarchy.map((p) => (
-                    <tr key={p.jp}>
-                      <td style={{ fontWeight: '500' }}>{p.jp}</td>
-                      <td>{p.en}</td>
-                      <td style={{ color: 'var(--accent-color)', fontWeight: 'bold' }}>{p.order}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', lineHeight: '1.8', fontSize: '14px', color: 'var(--text-primary)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  此網頁是基於{' '}
+                  <a
+                    href="https://docs.google.com/spreadsheets/d/1326h1mhWc88WrnRSrJCUMr3F9_3qJJ-fQzQYKseJkoo/edit?usp=sharing"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: 'var(--accent-color)', textDecoration: 'underline', fontWeight: 500 }}
+                  >
+                    im@s 曲熟悉度表單
+                  </a>
+                  ，由幾位同好工程師改良製作的非營利系統。
+                </div>
+                <div>
+                  旨為提供製作人們在日卡時作為自己的選曲參考，以及挑選團內盡可能多人熟悉的曲目。
+                </div>
+                <div style={{ fontWeight: 600 }}>
+                  希望大家能唱更多im@s的歌！
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <strong>資料來源：</strong>
+                <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <li>
+                    <a
+                      href="https://idolmaster-official.jp/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+                    >
+                      【公式】アイドルマスター ポータル（アイマス）
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://x.com/Mas_Kara_Card"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+                    >
+                      アイドルマスター楽曲しばりカラオケBOT
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://fujiwarahaji.me/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}
+                    >
+                      アイマス楽曲DB ふじわらはじめ - アイドルマスターの楽曲情報をまとめたサイト
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <strong>系統開發人員：</strong>Dino、Pararu、Azusa
+              </div>
             </div>
           </div>
         </div>

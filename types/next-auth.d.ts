@@ -9,6 +9,7 @@ declare module 'next-auth' {
       shareCode: string;
       themeColor: string;
       isPublic: boolean;
+      isPublicPitchRange: boolean;
       name?: string | null;
       email?: string | null;
       image?: string | null;
@@ -22,6 +23,7 @@ declare module 'next-auth' {
     shareCode: string;
     themeColor: string;
     isPublic: boolean;
+    isPublicPitchRange: boolean;
   }
 }
 
@@ -33,5 +35,6 @@ declare module 'next-auth/jwt' {
     shareCode: string;
     themeColor: string;
     isPublic: boolean;
+    isPublicPitchRange: boolean;
   }
 }

@@ -134,6 +134,15 @@ export default function SongFamiliarityHub() {
   // 兩個 state 都會在 timer 過後自動清掉,讓 UI 自然 fade 回去
   const [showChipHint, setShowChipHint] = useState(false);
   const [flashShowRated, setFlashShowRated] = useState(false);
+  // 用 ref 抓住 timer id,元件卸載時清掉,避免 setState on unmounted
+  const hintTimerRef = useRef<number | null>(null);
+  const flashTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current !== null) window.clearTimeout(hintTimerRef.current);
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
+    };
+  }, []);
   const [showPitchModal, setShowPitchModal] = useState(false);
   // 熟悉度定義說明卡 — 手機預設收起，桌面預設展開
   const [defsOpen, setDefsOpen] = useState(true);
@@ -746,11 +755,20 @@ export default function SongFamiliarityHub() {
                 }
                 onClick={() => {
                   if (!showRated) {
-                    // showRated 關著時點 chip 沒意義 → 提示 + 閃爍 checkbox 引導視線
+                    // 防連點:動畫播放中再點不重新觸發 — 避免:
+                    //   (a) 計時器重疊:第一個 timer 提早把後一次的 hint 收掉
+                    //   (b) state 從 true→true 不會 remount,CSS animation 無法 replay
+                    if (showChipHint || flashShowRated) return;
                     setShowChipHint(true);
                     setFlashShowRated(true);
-                    window.setTimeout(() => setShowChipHint(false), 2800);
-                    window.setTimeout(() => setFlashShowRated(false), 1200);
+                    hintTimerRef.current = window.setTimeout(() => {
+                      setShowChipHint(false);
+                      hintTimerRef.current = null;
+                    }, 2800);
+                    flashTimerRef.current = window.setTimeout(() => {
+                      setFlashShowRated(false);
+                      flashTimerRef.current = null;
+                    }, 1200);
                     return;
                   }
                   setSelectedFamiliarities((prev) =>

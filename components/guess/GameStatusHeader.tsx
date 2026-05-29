@@ -44,7 +44,7 @@ export default function GameStatusHeader({
           BEST: <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', marginLeft: '4px' }}>{bestRecord}</span>
         </div>
       </div>
-      
+
       <div style={{ display: 'flex', gap: '12px' }}>
         <button
           onClick={onUseElimination}
@@ -69,7 +69,7 @@ export default function GameStatusHeader({
             {eliminationCount}
           </span>
         </button>
-        
+
         <button
           onClick={onUseSameBrand}
           disabled={gameState !== 'playing' || sameBrandCount <= 0 || sameBrandUsedOnCurrent}

@@ -20,13 +20,24 @@ export default function GameClient() {
     sameBrandCount,
     eliminatedOptions,
     sameBrandUsedOnCurrent,
+    selections,
     startGame,
     handleOptionClick,
     handleNext,
+    handleGameOver,
     handleVideoError,
     useElimination,
     useSameBrand,
+    updateFamiliarity,
   } = useGameLogic();
+
+  const [activeFamiliaritySongId, setActiveFamiliaritySongId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (gameState === 'playing') {
+      setActiveFamiliaritySongId(null);
+    }
+  }, [gameState]);
 
   if (gameState === 'loading') {
     return (
@@ -145,31 +156,63 @@ export default function GameClient() {
             isSelected={option.id === selectedOptionId}
             isCorrectAnswer={option.id === currentQuestion.answer.id}
             onClick={handleOptionClick}
+            currentFamiliarity={selections[option.id]}
+            onSelectFamiliarity={(familiarity) => updateFamiliarity(option.id, familiarity)}
+            showFamiliaritySelector={activeFamiliaritySongId === option.id}
+            onToggleFamiliaritySelector={() => {
+              setActiveFamiliaritySongId(activeFamiliaritySongId === option.id ? null : option.id);
+            }}
           />
         ))}
       </div>
 
       {isAnswered && (
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '32px', paddingBottom: '48px' }}>
-          <button
-            onClick={handleNext}
-            className="btn btn-primary"
-            style={{
-              padding: '16px 40px',
-              borderRadius: '16px',
-              fontSize: '20px',
-              fontWeight: '900',
-              boxShadow: '0 8px 30px rgba(79, 70, 229, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            繼續下一題
-            <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
+          {selectedOptionId === currentQuestion.answer.id ? (
+            <button
+              onClick={handleNext}
+              className="btn btn-primary"
+              style={{
+                padding: '16px 40px',
+                borderRadius: '16px',
+                fontSize: '20px',
+                fontWeight: '900',
+                boxShadow: '0 8px 30px rgba(79, 70, 229, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              繼續下一題
+              <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={handleGameOver}
+              className="btn btn-danger"
+              style={{
+                padding: '16px 40px',
+                borderRadius: '16px',
+                fontSize: '20px',
+                fontWeight: '900',
+                boxShadow: '0 8px 30px rgba(239, 68, 68, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#dc2626',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              結束遊戲
+              <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
 

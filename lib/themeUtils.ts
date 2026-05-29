@@ -83,7 +83,7 @@ export function getBrandColor(brandId: string): string {
  */
 export function getBrandDisplayName(brandId: string): string {
   switch (brandId) {
-    case 'music_as': return 'アイドルマスター (765)';
+    case 'music_as': return 'アイドルマスター (AS)';
     case 'music_cg': return 'シンデレラガールズ (CG)';
     case 'music_ml': return 'ミリオンライブ！ (ML)';
     case 'music_sidem': return 'SideM (SideM)';

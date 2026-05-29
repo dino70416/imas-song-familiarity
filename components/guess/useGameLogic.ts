@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Song, Question, GameState } from '@/types/game';
 import { shuffle } from '@/lib/shuffle';
+import { useSession } from 'next-auth/react';
 
 export function useGameLogic() {
+  const { data: session, status } = useSession();
   const [gameState, setGameState] = useState<GameState>('loading');
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [playableSongs, setPlayableSongs] = useState<Song[]>([]);
@@ -13,6 +15,14 @@ export function useGameLogic() {
   const [score, setScore] = useState(0);
   const [bestRecord, setBestRecord] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [selections, setSelections] = useState<Record<string, number>>({});
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+
+  const matchingSongsCount = useMemo(() => {
+    if (playableSongs.length === 0) return 0;
+    if (selectedBrands.length === 0) return playableSongs.length;
+    return playableSongs.filter((s) => selectedBrands.includes(s.brand)).length;
+  }, [playableSongs, selectedBrands]);
 
   const nextQuestionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -29,6 +39,29 @@ export function useGameLogic() {
       if (saved) setBestRecord(parseInt(saved, 10));
     }
   }, []);
+
+  // Load familiarity selections
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetch('/api/selections')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && typeof data === 'object') {
+            setSelections(data);
+          }
+        })
+        .catch((err) => console.error('Failed to load cloud selections:', err));
+    } else if (status === 'unauthenticated') {
+      const localStored = localStorage.getItem('guest_selections');
+      if (localStored) {
+        try {
+          setSelections(JSON.parse(localStored));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, [status]);
 
   useEffect(() => {
     fetch('/api/songs/guess')
@@ -57,14 +90,24 @@ export function useGameLogic() {
 
   const generateQuestion = useCallback(() => {
     clearTimer();
-    if (playableSongs.length === 0 || allSongs.length < 4) {
+
+    // Filter song banks by selectedBrands (if any are selected)
+    const filteredPlayable = selectedBrands.length > 0
+      ? playableSongs.filter((s) => selectedBrands.includes(s.brand))
+      : playableSongs;
+
+    const filteredAll = selectedBrands.length > 0
+      ? allSongs.filter((s) => selectedBrands.includes(s.brand))
+      : allSongs;
+
+    if (filteredPlayable.length === 0 || filteredAll.length < 4) {
       return;
     }
-    
-    const answerIndex = Math.floor(Math.random() * playableSongs.length);
-    const answer = playableSongs[answerIndex];
 
-    const distractors = shuffle(allSongs.filter(s => s.id !== answer.id)).slice(0, 3);
+    const answerIndex = Math.floor(Math.random() * filteredPlayable.length);
+    const answer = filteredPlayable[answerIndex];
+
+    const distractors = shuffle(filteredAll.filter(s => s.id !== answer.id)).slice(0, 3);
     const options = shuffle([answer, ...distractors]);
 
     setCurrentQuestion({ answer, options });
@@ -72,7 +115,7 @@ export function useGameLogic() {
     setEliminatedOptions([]);
     setSameBrandUsedOnCurrent(false);
     setGameState('playing');
-  }, [playableSongs, allSongs, clearTimer]);
+  }, [playableSongs, allSongs, selectedBrands, clearTimer]);
 
   const startGame = () => {
     setScore(0);
@@ -90,9 +133,9 @@ export function useGameLogic() {
 
   const handleOptionClick = (optionId: string) => {
     if (gameState !== 'playing' || eliminatedOptions.includes(optionId)) return;
-    
+
     setSelectedOptionId(optionId);
-    
+
     const isCorrect = optionId === currentQuestion?.answer.id;
     if (isCorrect) {
       setGameState('answered');
@@ -104,15 +147,34 @@ export function useGameLogic() {
         }
         return newScore;
       });
-      
-      clearTimer();
-      nextQuestionTimerRef.current = setTimeout(() => {
-        generateQuestion();
-      }, 1500);
     } else {
-      setGameState('gameover');
+      setGameState('answered');
     }
   };
+
+  const handleGameOver = () => {
+    setGameState('gameover');
+  };
+
+  const updateFamiliarity = useCallback(async (songId: string, familiarity: number) => {
+    setSelections((prev) => ({ ...prev, [songId]: familiarity }));
+    if (status === 'authenticated') {
+      try {
+        await fetch('/api/selections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([{ songId, familiarity }]),
+        });
+      } catch (err) {
+        console.error('Failed to update cloud selection:', err);
+      }
+    } else {
+      const localStored = localStorage.getItem('guest_selections');
+      const selectionsObj = localStored ? JSON.parse(localStored) : {};
+      selectionsObj[songId] = familiarity;
+      localStorage.setItem('guest_selections', JSON.stringify(selectionsObj));
+    }
+  }, [status]);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -121,14 +183,14 @@ export function useGameLogic() {
 
   const useElimination = () => {
     if (eliminationCount <= 0 || !currentQuestion || gameState !== 'playing') return;
-    
+
     const wrongOptions = currentQuestion.options.filter(
       (o) => o.id !== currentQuestion.answer.id && !eliminatedOptions.includes(o.id)
     );
-    
+
     const shuffledWrong = shuffle(wrongOptions);
     const toEliminate = shuffledWrong.slice(0, 2).map((o) => o.id);
-    
+
     setEliminatedOptions((prev) => [...prev, ...toEliminate]);
     setEliminationCount((prev) => prev - 1);
   };
@@ -166,11 +228,17 @@ export function useGameLogic() {
     sameBrandCount,
     eliminatedOptions,
     sameBrandUsedOnCurrent,
+    selections,
+    selectedBrands,
+    setSelectedBrands,
+    matchingSongsCount,
     startGame,
     handleOptionClick,
     handleNext: generateQuestion,
+    handleGameOver,
     handleVideoError,
     useElimination,
-    useSameBrand
+    useSameBrand,
+    updateFamiliarity
   };
 }

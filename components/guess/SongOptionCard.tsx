@@ -9,7 +9,27 @@ interface SongOptionCardProps {
   isSelected: boolean;
   isCorrectAnswer: boolean;
   onClick: (id: string) => void;
+  currentFamiliarity?: number;
+  onSelectFamiliarity?: (familiarity: number) => void;
+  showFamiliaritySelector?: boolean;
+  onToggleFamiliaritySelector?: () => void;
 }
+
+const RATING_OPTIONS = [
+  { v: 1, label: '會唱' },
+  { v: 2, label: '常聽' },
+  { v: 3, label: '有聽過' },
+  { v: 4, label: '不太記得' },
+  { v: 0, label: '不記得' },
+];
+
+const FAM_TEXTS: Record<number, string> = {
+  1: '會唱',
+  2: '常聽',
+  3: '有聽過',
+  4: '不太記得',
+  0: '不記得',
+};
 
 export default function SongOptionCard({
   option,
@@ -18,6 +38,10 @@ export default function SongOptionCard({
   isSelected,
   isCorrectAnswer,
   onClick,
+  currentFamiliarity,
+  onSelectFamiliarity,
+  showFamiliaritySelector,
+  onToggleFamiliaritySelector,
 }: SongOptionCardProps) {
   const getSingerText = (song: Song) => {
     if (song.units && song.units.length > 0) {
@@ -27,6 +51,53 @@ export default function SongOptionCard({
       return song.members.map((m) => m.name).join('、');
     }
     return '群星 / 其他';
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // If the click is inside a familiarity button, don't trigger the card's main toggle
+    if ((e.target as HTMLElement).closest('.familiarity-btn')) {
+      return;
+    }
+    if (isEliminated) return;
+
+    if (isAnswered) {
+      onToggleFamiliaritySelector?.();
+    } else {
+      onClick(option.id);
+    }
+  };
+
+  const getFamBadge = (fam: number | undefined) => {
+    if (fam === undefined) {
+      return (
+        <span style={{
+          fontSize: '11px',
+          padding: '2px 8px',
+          borderRadius: '20px',
+          border: '1px dashed #9ca3af',
+          color: '#6b7280',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          fontWeight: '500'
+        }}>
+          💡 點我標記熟悉度
+        </span>
+      );
+    }
+    return (
+      <span className={`familiarity-btn state-${fam} active`} style={{
+        fontSize: '11px',
+        padding: '2px 10px',
+        borderRadius: '20px',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontWeight: 'bold'
+      }}>
+        {FAM_TEXTS[fam]}
+      </span>
+    );
   };
 
   const brandColor = getBrandColor(option.brand);
@@ -85,11 +156,21 @@ export default function SongOptionCard({
   }
 
   return (
-    <button
-      onClick={() => onClick(option.id)}
-      disabled={isAnswered || isEliminated}
+    <div
+      onClick={handleCardClick}
       className={cardClasses}
-      style={cardStyles}
+      style={{
+        ...cardStyles,
+        cursor: isEliminated ? 'not-allowed' : 'pointer'
+      }}
+      role="button"
+      tabIndex={isEliminated ? -1 : 0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleCardClick(e as any);
+        }
+      }}
     >
       {!isEliminated && (
         <div
@@ -145,7 +226,7 @@ export default function SongOptionCard({
         )}
       </div>
 
-      <div style={{ paddingLeft: '8px' }}>
+      <div style={{ paddingLeft: '8px', width: '100%' }}>
         <h3
           style={{
             fontSize: '18px',
@@ -163,6 +244,52 @@ export default function SongOptionCard({
           {isEliminated ? '---' : getSingerText(option)}
         </p>
       </div>
-    </button>
+
+      {isAnswered && !isEliminated && (
+        <div style={{
+          marginTop: '16px',
+          paddingTop: '12px',
+          borderTop: '1px solid rgba(0, 0, 0, 0.08)',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
+        }}>
+          {showFamiliaritySelector ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>設定熟悉度：</span>
+                <span style={{ fontSize: '11px', color: '#6b7280', cursor: 'pointer', opacity: 0.8 }} onClick={onToggleFamiliaritySelector}>收合 ×</span>
+              </div>
+              <div className="familiarity-options" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', width: '100%' }}>
+                {RATING_OPTIONS.map(({ v, label }) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`familiarity-btn state-${v} ${currentFamiliarity === v ? 'active' : ''}`}
+                    style={{
+                      padding: '6px 2px',
+                      fontSize: '11px',
+                      textAlign: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      minWidth: '0'
+                    }}
+                    onClick={() => onSelectFamiliarity?.(v)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>我的熟悉度：</span>
+              {getFamBadge(currentFamiliarity)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -224,7 +224,11 @@ export default function CollaborationPlaylistPage() {
     }}>
       <header>
         <div className="container header-content">
-          <h1>IMAS Song Familiarity Hub</h1>
+          <h1>
+            <a href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+              IMAS Song Familiarity Hub
+            </a>
+          </h1>
           <a href="/" className="btn btn-secondary">
             返回首頁
           </a>

@@ -622,7 +622,11 @@ export default function SongFamiliarityHub() {
       <header>
         <div className="container header-content">
           <div className="header-title-row">
-            <h1>IMAS Song Familiarity Hub</h1>
+            <h1>
+              <a href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+                IMAS Song Familiarity Hub
+              </a>
+            </h1>
             {status === 'authenticated' && session?.user && (
               <span className="header-greeting">
                 Hi, <strong>{session.user.nickname || session.user.username}</strong>

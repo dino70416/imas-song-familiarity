@@ -10,21 +10,18 @@ export async function GET(request: Request) {
     
     let iconUrl = '/favicon.ico';
     
-    const idols = await prisma.member.findMany({
+    const matchedIdol = await prisma.member.findFirst({
       where: {
-        color: { not: null },
+        color: {
+          equals: themeColor,
+          mode: 'insensitive'
+        },
         imagePath: { not: null }
       },
       select: {
-        id: true,
-        name: true,
-        color: true,
         imagePath: true
       }
     });
-
-    const targetColor = themeColor.toLowerCase();
-    const matchedIdol = idols.find(idol => idol.color?.toLowerCase() === targetColor);
 
     if (matchedIdol && matchedIdol.imagePath) {
       iconUrl = matchedIdol.imagePath;

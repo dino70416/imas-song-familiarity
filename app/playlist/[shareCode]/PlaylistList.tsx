@@ -156,7 +156,7 @@ export default function PlaylistList({ songs, idols, units }: Props) {
           options={presentBrands}
           value={selectedBrands}
           onChange={handleBrandsChange}
-          placeholder="所有偶像團體"
+          placeholder="所有偶像品牌"
           className="ms-brand"
         />
         <IdolPickerModal

@@ -146,7 +146,7 @@ export default function BrandPicker({
               }}
             >
               <h2 id="brand-picker-title" style={{ margin: 0, fontSize: '18px' }}>
-                選擇偶像團體
+                選擇偶像品牌
               </h2>
               {draft.size > 0 && (
                 <button
@@ -192,10 +192,10 @@ export default function BrandPicker({
                     style={
                       checked
                         ? {
-                            borderColor: color,
-                            backgroundColor: `${color}10`,
-                            boxShadow: `0 0 0 1px ${color}33 inset`,
-                          }
+                          borderColor: color,
+                          backgroundColor: `${color}10`,
+                          boxShadow: `0 0 0 1px ${color}33 inset`,
+                        }
                         : undefined
                     }
                   >

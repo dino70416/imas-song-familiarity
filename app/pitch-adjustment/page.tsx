@@ -2220,7 +2220,7 @@ export default function PitchAdjustmentPage() {
 
                     {/* 企劃篩選 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>🏢 偶像團體企劃</label>
+                      <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>🏢 偶像品牌</label>
                       <select
                         value={recommendBrand}
                         onChange={(e) => setRecommendBrand(e.target.value)}
@@ -2611,7 +2611,7 @@ export default function PitchAdjustmentPage() {
 
                     {/* 企劃篩選 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>🏢 偶像團體企劃</label>
+                      <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>🏢 偶像品牌</label>
                       <select
                         value={adjustBrand}
                         onChange={(e) => setAdjustBrand(e.target.value)}

@@ -17,6 +17,8 @@
     "seed:youtube-ids": "ts-node --project scripts/tsconfig.json scripts/seed-youtube-ids.ts",
     "sync:idol-images": "ts-node --project scripts/tsconfig.json scripts/sync-idol-images.ts",
     "fix:876": "ts-node --project scripts/tsconfig.json scripts/fix-876.ts",
+    "fix:members": "ts-node --project scripts/tsconfig.json scripts/cleanup-member-table.ts",
+    "audit:songs": "ts-node --project scripts/tsconfig.json scripts/audit-song-table.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts"

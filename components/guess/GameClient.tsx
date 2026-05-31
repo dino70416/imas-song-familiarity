@@ -211,7 +211,13 @@ export default function GameClient() {
 
   if (!currentQuestion) return null;
 
-  const videoId = currentQuestion.answer.youtubeIds?.split(',')[0].trim() || '';
+  const videoId = React.useMemo(() => {
+    const rawIds = currentQuestion.answer.youtubeIds;
+    if (!rawIds) return '';
+    const ids = rawIds.split(',').map((id) => id.trim());
+    return ids[Math.floor(Math.random() * ids.length)];
+  }, [currentQuestion.answer.id, currentQuestion.answer.youtubeIds]);
+
   const isAnswered = gameState === 'answered';
 
   return (

@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { normalizeMember } from './lib/normalizeMember';
 
 const prisma = new PrismaClient();
 const BASE_URL = 'https://fujiwarahaji.me';
@@ -254,8 +255,13 @@ async function scrapeAll() {
               const name = d$(card).find('h5').text().trim();
               const cvText = d$(card).find('p').text().trim();
               const cvName = cvText.replace('CV:', '').replace('CV', '').trim();
-              if (name) {
-                members.push({ name, cvName });
+              // normalizeMember 處理兩個歷史雷:
+              //   - 黑名單(系列名 / CG 類別 / SC unit 名 / 「全体」)→ 整列 skip
+              //   - 反向資料(cvName 結尾「役」表示 name 是聲優)→ 翻轉 + 去「役」
+              // 詳見 scripts/lib/normalizeMember.ts
+              const normalized = normalizeMember({ name, cvName });
+              if (normalized) {
+                members.push(normalized);
               }
             }
 

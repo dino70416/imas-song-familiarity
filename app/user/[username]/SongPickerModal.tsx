@@ -11,9 +11,10 @@ interface Props {
   onClose: () => void;
   title: string;
   initialSongIds: string[];
-  onConfirm: (selectedIds: string[]) => void;
+  onConfirm: (selectedIds: string[], comment?: string) => void;
   maxSelections?: number;
   singleSelect?: boolean;
+  showCommentInput?: boolean;
 }
 
 interface Song {
@@ -32,12 +33,14 @@ export default function SongPickerModal({
   onConfirm,
   maxSelections = 30,
   singleSelect = false,
+  showCommentInput = false,
 }: Props) {
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<Set<string>>(new Set(initialSongIds));
   const [query, setQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<string>('');
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -307,6 +310,32 @@ export default function SongPickerModal({
           </div>
         )}
 
+        {showCommentInput && draft.size > 0 && (
+          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+              許願留言（選填，最多 200 字）
+            </label>
+            <textarea
+              className="form-input"
+              maxLength={200}
+              placeholder="請輸入留言或給該製作人的備註..."
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              style={{
+                width: '100%',
+                height: '70px',
+                resize: 'none',
+                padding: '8px 12px',
+                fontSize: '13px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-base)',
+                color: 'var(--text-primary)',
+              }}
+            />
+          </div>
+        )}
+
         <div className="modal-actions" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
           {!singleSelect && draft.size > 0 && (
             <button
@@ -325,7 +354,7 @@ export default function SongPickerModal({
             type="button"
             className="btn btn-primary"
             onClick={() => {
-              onConfirm(Array.from(draft));
+              onConfirm(Array.from(draft), comment);
               onClose();
             }}
           >

@@ -173,6 +173,7 @@ model SongWish {
   senderUserId String   @db.Uuid
   songId       String   @db.Uuid
   isCompleted  Boolean  @default(false)
+  comment      String?
   createdAt    DateTime @default(now())
 
   targetUser   User     @relation("ReceivedWishes", fields: [targetUserId], references: [id], onDelete: Cascade)

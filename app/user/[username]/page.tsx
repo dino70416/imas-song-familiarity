@@ -123,6 +123,7 @@ export default async function UserProfilePage({ params }: PageProps) {
           id: true,
           createdAt: true,
           isCompleted: true,
+          comment: true,
           song: {
             select: {
               id: true,
@@ -319,6 +320,7 @@ export default async function UserProfilePage({ params }: PageProps) {
     id: w.id,
     createdAt: w.createdAt.toISOString(),
     isCompleted: w.isCompleted,
+    comment: w.comment,
     song: {
       id: w.song.id,
       title: w.song.title,

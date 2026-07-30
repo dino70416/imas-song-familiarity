@@ -1,0 +1,828 @@
+-- Seed and update missing Cinderella Girls idols
+INSERT INTO "Member" ("id", "name", "cvName", "kana", "production", "color", "imagePath")
+VALUES
+  (
+  'a4f9f55b-128c-418c-9f6d-942f73dc1201',
+  '相川千夏',
+  NULL,
+  'あいかわちなつ',
+  'cg',
+  '#7a508f',
+  '/idol-images/cg_chinatsu.webp'
+),
+  (
+  'ef8cd598-6f4a-435f-be93-11d8a9f2e4c3',
+  '愛野渚',
+  NULL,
+  'あいのなぎさ',
+  'cg',
+  '#ffcb49',
+  '/idol-images/cg_nagisa.webp'
+),
+  (
+  '00e92a27-eed1-471b-8f25-89edc2e13d65',
+  '相原雪乃',
+  NULL,
+  'あいはらゆきの',
+  'cg',
+  '#d06447',
+  '/idol-images/cg_yukino.webp'
+),
+  (
+  '732817a5-b634-45b6-aee3-4e41137e99bb',
+  '赤西瑛梨華',
+  NULL,
+  'あかにしえりか',
+  'cg',
+  '#eb306d',
+  '/idol-images/cg_erika.webp'
+),
+  (
+  '277aaec2-270b-4591-b108-2229e1c628b6',
+  '浅野風香',
+  NULL,
+  'あさのふうか',
+  'cg',
+  '#618d75',
+  '/idol-images/cg_fuka.webp'
+),
+  (
+  'e9edab05-5fb3-42c7-88a8-852681097ace',
+  '綾瀬穂乃香',
+  NULL,
+  'あやせほのか',
+  'cg',
+  '#f5d6ff',
+  '/idol-images/cg_honoka.webp'
+),
+  (
+  'ddd8fe21-7d48-41d0-8a33-20aa03d2628d',
+  '有浦柑奈',
+  NULL,
+  'ありうらかんな',
+  'cg',
+  '#ec4b6e',
+  '/idol-images/cg_kanna.webp'
+),
+  (
+  '2956df65-3dc8-4584-b1e6-15eaa90a6b08',
+  '安斎都',
+  NULL,
+  'あんざいみやこ',
+  'cg',
+  '#fa9063',
+  '/idol-images/cg_miyako.webp'
+),
+  (
+  '6bfee736-d6e7-4189-9475-7ed2356f8aba',
+  '池袋晶葉',
+  NULL,
+  'いけぶくろあきは',
+  'cg',
+  '#de2f4d',
+  '/idol-images/cg_akiha.webp'
+),
+  (
+  'fa26d547-17ea-4735-88fb-8086470d3752',
+  '伊集院惠',
+  NULL,
+  'いじゅういんめぐみ',
+  'cg',
+  '#521078',
+  '/idol-images/cg_megumi.webp'
+),
+  (
+  'a9e91d6a-3ce7-40bc-9f24-ca526cf473d6',
+  '今井加奈',
+  NULL,
+  'いまいかな',
+  'cg',
+  '#ff3de5',
+  '/idol-images/cg_kana.webp'
+),
+  (
+  'fa7996e9-c44f-4a4a-ac13-04e307bdb759',
+  '井村雪菜',
+  NULL,
+  'いむらせつな',
+  'cg',
+  '#ed3767',
+  '/idol-images/cg_setsuna.webp'
+),
+  (
+  '124c4aa6-9f4b-4bca-968c-4bbc82b4a2db',
+  '氏家むつみ',
+  NULL,
+  'うじいえむつみ',
+  'cg',
+  '#375637',
+  '/idol-images/cg_mutsumi.webp'
+),
+  (
+  '833b899a-7382-4758-8238-ef1fbf34f5b0',
+  '梅木音葉',
+  NULL,
+  'うめきおとは',
+  'cg',
+  '#75bbae',
+  '/idol-images/cg_otoha.webp'
+),
+  (
+  '8ceb9522-8c82-4b97-822c-3dc7927617d4',
+  '江上椿',
+  NULL,
+  'えがみつばき',
+  'cg',
+  '#e95b64',
+  '/idol-images/cg_tsubaki.webp'
+),
+  (
+  '0f6b588c-55b0-449c-aea6-078497aaa496',
+  '衛藤美紗希',
+  NULL,
+  'えとうみさき',
+  'cg',
+  '#fe85c7',
+  '/idol-images/cg_misaki.webp'
+),
+  (
+  '1e924709-bbd0-46e5-803a-445aa8ab2b00',
+  '海老原菜帆',
+  NULL,
+  'えびはらなほ',
+  'cg',
+  '#819832',
+  '/idol-images/cg_naho.webp'
+),
+  (
+  '33963209-5687-41f5-ab49-c7aef6944a65',
+  '太田優',
+  NULL,
+  'おおたゆう',
+  'cg',
+  '#f851a7',
+  '/idol-images/cg_yuu.webp'
+),
+  (
+  '56d36e4f-8bac-4340-af4a-8ae98c78073b',
+  '大西由里子',
+  NULL,
+  'おおにしゆりこ',
+  'cg',
+  '#c90f74',
+  '/idol-images/cg_yuriko.webp'
+),
+  (
+  '5b89f4a1-435d-4611-9aad-8854a6052b7c',
+  '大沼くるみ',
+  NULL,
+  'おおぬまくるみ',
+  'cg',
+  '#ffc1bd',
+  '/idol-images/cg_kurumi.webp'
+),
+  (
+  '15cb0142-9748-4b09-b35f-9f08af7b2a62',
+  '大原みちる',
+  NULL,
+  'おおはらみちる',
+  'cg',
+  '#d8843e',
+  '/idol-images/cg_michiru.webp'
+),
+  (
+  'f492ecf2-7558-4a1d-b4c5-54e7c0b44fb8',
+  '岡崎泰葉',
+  NULL,
+  'おかざきやすは',
+  'cg',
+  '#ade5f6',
+  '/idol-images/cg_yasuha.webp'
+),
+  (
+  '2039d7c6-9b36-435f-8dd7-58e8b73ecd28',
+  '奥山沙織',
+  NULL,
+  'おくやまさおり',
+  'cg',
+  '#e87487',
+  '/idol-images/cg_saori.webp'
+),
+  (
+  '696baf1c-f3c0-495f-8756-2a8f31ff099f',
+  '岸部彩華',
+  NULL,
+  'きしべあやか',
+  'cg',
+  '#f14fee',
+  '/idol-images/cg_ayaka.webp'
+),
+  (
+  '682ef6ae-051c-4f7c-a3df-70e719dbe66a',
+  '北川真尋',
+  NULL,
+  'きたがわまひろ',
+  'cg',
+  '#4fd962',
+  '/idol-images/cg_mahiro.webp'
+),
+  (
+  '925bbd63-8838-4304-ab71-42d554015cbe',
+  '木場真奈美',
+  NULL,
+  'きばまなみ',
+  'cg',
+  '#8d8696',
+  '/idol-images/cg_manami.webp'
+),
+  (
+  '809efc9f-f1ee-4f51-9a6b-3225f694a015',
+  'キャシー・グラハム',
+  NULL,
+  'きゃしー・ぐらはむ',
+  'cg',
+  '#ffdc00',
+  '/idol-images/cg_cathy.webp'
+),
+  (
+  '09ad47bf-eebd-4d00-a255-be1edffa2096',
+  '桐野アヤ',
+  NULL,
+  'きりのあや',
+  'cg',
+  '#c3396c',
+  '/idol-images/cg_aya.webp'
+),
+  (
+  '68e2606c-2cc6-457b-ac3b-8ea489b259a4',
+  '日下部若葉',
+  NULL,
+  'くさかべわかば',
+  'cg',
+  '#c4d673',
+  '/idol-images/cg_wakaba.webp'
+),
+  (
+  'b9d654f6-d9c5-4c3b-9583-70020dc0eca7',
+  '工藤忍',
+  NULL,
+  'くどうしのぶ',
+  'cg',
+  '#eb3249',
+  '/idol-images/cg_shinobu.webp'
+),
+  (
+  'e4b98cc3-8e03-4fdd-a8be-8f9f39c8af5a',
+  'クラリス',
+  NULL,
+  'くらりす',
+  'cg',
+  '#ffda7b',
+  '/idol-images/cg_clarice.webp'
+),
+  (
+  'd286d0cc-d439-4478-b76d-98c9dac76ab8',
+  '栗原ネネ',
+  NULL,
+  'くりはらねね',
+  'cg',
+  '#0f7bf8',
+  '/idol-images/cg_nene.webp'
+),
+  (
+  '3f174e23-a9ae-44d2-9c40-bf4e8ce7cb26',
+  '黒川千秋',
+  NULL,
+  'くろかわちあき',
+  'cg',
+  '#bc1212',
+  '/idol-images/cg_chiaki.webp'
+),
+  (
+  '2b4b7f5c-52d2-4c58-91f7-8a6d5e9a9772',
+  'ケイト',
+  NULL,
+  'けいと',
+  'cg',
+  '#cf142b',
+  '/idol-images/cg_kate.webp'
+),
+  (
+  'c7f6a338-2599-4a22-a377-b6c3b48ad594',
+  '小松伊吹',
+  NULL,
+  'こまついぶき',
+  'cg',
+  '#fffb4e',
+  '/idol-images/cg_ibuki.webp'
+),
+  (
+  '5936b27a-c40e-47cb-ba0d-43f5f3e5a977',
+  '小室千奈美',
+  NULL,
+  'こむろちなみ',
+  'cg',
+  '#acc0e6',
+  '/idol-images/cg_chinami.webp'
+),
+  (
+  'adf79333-a6d1-4091-92c5-dac0ebf88df2',
+  '財前時子',
+  NULL,
+  'ざいぜんときこ',
+  'cg',
+  '#7d0837',
+  '/idol-images/cg_tokiko.webp'
+),
+  (
+  '19974186-0d2f-47e2-8202-44edede9a086',
+  '斉藤洋子',
+  NULL,
+  'さいとうようこ',
+  'cg',
+  '#cbfc9f',
+  '/idol-images/cg_yoko.webp'
+),
+  (
+  '9173b9ee-78e8-4a72-bbf4-d1490e02f652',
+  '冴島清美',
+  NULL,
+  'さえじまきよみ',
+  'cg',
+  '#f6bd30',
+  '/idol-images/cg_kiyomi.webp'
+),
+  (
+  '461b4d3b-ce59-4997-a4fd-bd647f6dd68d',
+  '榊原里美',
+  NULL,
+  'さかきばらさとみ',
+  'cg',
+  '#fec520',
+  '/idol-images/cg_satomi.webp'
+),
+  (
+  'e8264a39-e365-40d7-ad88-19c16fff32a3',
+  '沢田麻理菜',
+  NULL,
+  'さわだまりな',
+  'cg',
+  '#fca538',
+  '/idol-images/cg_marina.webp'
+),
+  (
+  '87ca825a-cd47-47d1-b6db-4fadb2dfa1a8',
+  '篠原礼',
+  NULL,
+  'しのはられい',
+  'cg',
+  '#bb68fe',
+  '/idol-images/cg_rei.webp'
+),
+  (
+  'fdc86bf7-6a21-4b9f-b459-81fcbe988e4c',
+  '首藤葵',
+  NULL,
+  'しゅとうあおい',
+  'cg',
+  '#fbe983',
+  '/idol-images/cg_aoi.webp'
+),
+  (
+  'dd960ee7-921b-4435-b5b4-c8da1369d5b2',
+  '杉坂海',
+  NULL,
+  'すぎさかうみ',
+  'cg',
+  '#d83c6a',
+  '/idol-images/cg_umi.webp'
+),
+  (
+  'a05b6d8b-4d9a-4045-8a76-93e0426f6c82',
+  '涼宮星花',
+  NULL,
+  'すずみやせいか',
+  'cg',
+  '#f994c4',
+  '/idol-images/cg_seika.webp'
+),
+  (
+  '58f8aed0-543c-4b3c-8319-c4a712aba891',
+  '瀬名詩織',
+  NULL,
+  'せなしおり',
+  'cg',
+  '#52c6c3',
+  '/idol-images/cg_shiori.webp'
+),
+  (
+  '47599016-bdb2-477c-b3b7-5abd5f6bad91',
+  '仙崎恵磨',
+  NULL,
+  'せんざきえま',
+  'cg',
+  '#d30d85',
+  '/idol-images/cg_ema.webp'
+),
+  (
+  'f73235ec-5def-4f16-863e-d6c21ec17ae7',
+  '相馬夏美',
+  NULL,
+  'そうまなつみ',
+  'cg',
+  '#fcc138',
+  '/idol-images/cg_natsumi.webp'
+),
+  (
+  'c6f46c8c-21fd-4709-a393-88f5923ad6c1',
+  '高橋礼子',
+  NULL,
+  'たかはしれいこ',
+  'cg',
+  '#781000',
+  '/idol-images/cg_reiko.webp'
+),
+  (
+  '54ef3e3f-2c49-4854-a297-d1e0fe1a3ffd',
+  '高峯のあ',
+  NULL,
+  'たかみねのあ',
+  'cg',
+  '#9fe1fd',
+  '/idol-images/cg_noa.webp'
+),
+  (
+  'ddcc70f9-6e39-4f79-8c54-b446ca619a20',
+  '月宮雅',
+  NULL,
+  'つきみやみやび',
+  'cg',
+  '#ffd9db',
+  '/idol-images/cg_miyabi.webp'
+),
+  (
+  '4c6b39d7-254b-493b-abb5-d5fa50cbaa47',
+  '土屋亜子',
+  NULL,
+  'つちやあこ',
+  'cg',
+  '#ffbe60',
+  '/idol-images/cg_ako.webp'
+),
+  (
+  '9857395f-a619-426a-abda-cd7b48778245',
+  '東郷あい',
+  NULL,
+  'とうごうあい',
+  'cg',
+  '#9b274a',
+  '/idol-images/cg_ai.webp'
+),
+  (
+  'd6f2f340-7930-4633-a9c2-02448ecb21c4',
+  '長富蓮実',
+  NULL,
+  'ながとみはすみ',
+  'cg',
+  '#ea8a91',
+  '/idol-images/cg_hasumi.webp'
+),
+  (
+  '3b391343-92d2-4568-8ca0-309308113093',
+  '並木芽衣子',
+  NULL,
+  'なみきめいこ',
+  'cg',
+  '#feea9c',
+  '/idol-images/cg_meiko.webp'
+),
+  (
+  'caf5c325-485e-4337-8aa2-bc8e2a9d2195',
+  '成宮由愛',
+  NULL,
+  'なるみやゆめ',
+  'cg',
+  '#2b5cd5',
+  '/idol-images/cg_yume.webp'
+),
+  (
+  'ea53ea3b-211f-4768-8a4d-8ccb325c956e',
+  '西川保奈美',
+  NULL,
+  'にしかわほなみ',
+  'cg',
+  '#5756d8',
+  '/idol-images/cg_honami.webp'
+),
+  (
+  '614b8731-1deb-4e5a-9be3-9f93a018ee9b',
+  '西島櫂',
+  NULL,
+  'にしじまかい',
+  'cg',
+  '#f16029',
+  '/idol-images/cg_kai.webp'
+),
+  (
+  'af7ac545-5e84-4889-801d-be4f5d683708',
+  '丹羽仁美',
+  NULL,
+  'にわひとみ',
+  'cg',
+  '#a80826',
+  '/idol-images/cg_hitomi.webp'
+),
+  (
+  'cb92eea6-b3e2-414d-b3be-07d49079d61d',
+  '野々村そら',
+  NULL,
+  'ののむらそら',
+  'cg',
+  '#fc6e2e',
+  '/idol-images/cg_sora.webp'
+),
+  (
+  '95262aa1-7350-4057-a60b-68bf26ac89d9',
+  '服部瞳子',
+  NULL,
+  'はっとりとうこ',
+  'cg',
+  '#633aa1',
+  '/idol-images/cg_toko.webp'
+),
+  (
+  'fe50e88b-8917-45fd-b4e2-2d6168378cdc',
+  '浜川愛結奈',
+  NULL,
+  'はまかわあゆな',
+  'cg',
+  '#a42678',
+  '/idol-images/cg_ayuna.webp'
+),
+  (
+  '9d49c48d-d284-4951-8af4-41b8fefcee25',
+  '原田美世',
+  NULL,
+  'はらだみよ',
+  'cg',
+  '#e94047',
+  '/idol-images/cg_miyo.webp'
+),
+  (
+  '0bf8c32d-8ad3-4298-9bac-c114e4ee7a34',
+  '柊志乃',
+  NULL,
+  'ひいらぎしの',
+  'cg',
+  '#ad1e66',
+  '/idol-images/cg_shino.webp'
+),
+  (
+  '44bdea28-c463-4497-9c34-7919d4c2d910',
+  '兵藤レナ',
+  NULL,
+  'ひょうどうれな',
+  'cg',
+  '#d8076b',
+  '/idol-images/cg_rena.webp'
+),
+  (
+  '840e4b41-a4cc-4621-ac5c-62ba23338fef',
+  '福山舞',
+  NULL,
+  'ふくやままい',
+  'cg',
+  '#ff68b5',
+  '/idol-images/cg_mai.webp'
+),
+  (
+  'f3bb7580-3ecf-43b4-b615-d24b0063f038',
+  '藤居朋',
+  NULL,
+  'ふじいとも',
+  'cg',
+  '#9b58c2',
+  '/idol-images/cg_tomo.webp'
+),
+  (
+  '7cc976ea-cb1c-488d-8ea8-8fed1f395897',
+  '古澤頼子',
+  NULL,
+  'ふるさわよりこ',
+  'cg',
+  '#3f3c8b',
+  '/idol-images/cg_yoriko.webp'
+),
+  (
+  'f27cc01f-b999-465b-bf30-66a5af5b718a',
+  'ヘレン',
+  NULL,
+  'へれん',
+  'cg',
+  '#BA910F',
+  '/idol-images/cg_helen.webp'
+),
+  (
+  'afc74371-b9de-4697-bfe3-590e69aeb510',
+  '槙原志保',
+  NULL,
+  'まきはらしほ',
+  'cg',
+  '#f97f4b',
+  '/idol-images/cg_shiho.webp'
+),
+  (
+  'c53e131f-2a6d-4e79-88ab-99b7dc77c143',
+  '松尾千鶴',
+  NULL,
+  'まつおちづる',
+  'cg',
+  '#99e3fc',
+  '/idol-images/cg_chizuru.webp'
+),
+  (
+  '30d0058a-8b54-498f-a3bf-ab075a44d859',
+  '松原早耶',
+  NULL,
+  'まつばらさや',
+  'cg',
+  '#f743a6',
+  '/idol-images/cg_saya.webp'
+),
+  (
+  '3f5ae55f-fbef-4f5b-a204-ed37b592f2a5',
+  '松本沙理奈',
+  NULL,
+  'まつもとさりな',
+  'cg',
+  '#2943cb',
+  '/idol-images/cg_sarina.webp'
+),
+  (
+  'c09dfc9f-03fe-47f2-8168-2394ce3e88b8',
+  '松山久美子',
+  NULL,
+  'まつやまくみこ',
+  'cg',
+  '#ff7b2c',
+  '/idol-images/cg_kumiko.webp'
+),
+  (
+  'ee4109db-14f8-480b-af5f-ef92deaff310',
+  '間中美里',
+  NULL,
+  'まなかみさと',
+  'cg',
+  '#d1f9e6',
+  '/idol-images/cg_misato.webp'
+),
+  (
+  'afd4fe94-b3cc-4c43-a9d3-12409fc4aff3',
+  '真鍋いつき',
+  NULL,
+  'まなべいつき',
+  'cg',
+  '#58eabd',
+  '/idol-images/cg_itsuki.webp'
+),
+  (
+  '18d0774e-d8f4-46fe-a425-ee8ad67ab13e',
+  '水木聖來',
+  NULL,
+  'みずきせいら',
+  'cg',
+  '#86dbff',
+  '/idol-images/cg_seira.webp'
+),
+  (
+  'fecb3a2c-4626-4fa3-9eae-35e067f08e4f',
+  '水野翠',
+  NULL,
+  'みずのみどり',
+  'cg',
+  '#43a0ab',
+  '/idol-images/cg_midori.webp'
+),
+  (
+  'fb17073f-2f58-4535-91a2-918c727a9839',
+  '三好紗南',
+  NULL,
+  'みよしさな',
+  'cg',
+  '#45f05b',
+  '/idol-images/cg_sana.webp'
+),
+  (
+  '117ee7d2-606f-45d7-9866-a8b78e5a928b',
+  '村松さくら',
+  NULL,
+  'むらまつさくら',
+  'cg',
+  '#eb6174',
+  '/idol-images/cg_sakura.webp'
+),
+  (
+  '0eb3c081-c4fe-40af-9611-bcf9d501b48f',
+  'メアリー・コクラン',
+  NULL,
+  'めありー・こくらん',
+  'cg',
+  '#f196ff',
+  '/idol-images/cg_mary.webp'
+),
+  (
+  '1fc1259c-4a0c-4ce3-b10d-c788bdd9a10f',
+  '持田亜里沙',
+  NULL,
+  'もちだありさ',
+  'cg',
+  '#fd9286',
+  '/idol-images/cg_arisa.webp'
+),
+  (
+  '947e4414-88cb-47e1-8ec8-c519536a3d50',
+  '桃井あずき',
+  NULL,
+  'ももいあずき',
+  'cg',
+  '#93256c',
+  '/idol-images/cg_azuki.webp'
+),
+  (
+  '292c13b5-590b-4d36-adb8-661104af6aa1',
+  '楊菲菲',
+  NULL,
+  'やおふぇいふぇい',
+  'cg',
+  '#e56f66',
+  '/idol-images/cg_yao.webp'
+),
+  (
+  '86267bfe-4066-478d-b347-3ab7783c011a',
+  '矢口美羽',
+  NULL,
+  'やぐちみう',
+  'cg',
+  '#ec5800',
+  '/idol-images/cg_miu.webp'
+),
+  (
+  '356f6038-010d-4bda-8b79-df6c7b9867bc',
+  '柳清良',
+  NULL,
+  'やなぎきよら',
+  'cg',
+  '#e7cbee',
+  '/idol-images/cg_kiyora.webp'
+),
+  (
+  'd633baf1-b447-4353-bda6-068a808f0f71',
+  '柳瀬美由紀',
+  NULL,
+  'やなせみゆき',
+  'cg',
+  '#ff5d14',
+  '/idol-images/cg_miyuki.webp'
+),
+  (
+  '6c68f8cc-72c4-41cb-9eab-a23050010e1d',
+  '横山千佳',
+  NULL,
+  'よこやまちか',
+  'cg',
+  '#fc87bf',
+  '/idol-images/cg_chika.webp'
+),
+  (
+  '6c4943b8-1df7-4171-8ae3-84d2b19654cd',
+  '吉岡沙紀',
+  NULL,
+  'よしおかさき',
+  'cg',
+  '#1b24c2',
+  '/idol-images/cg_saki.webp'
+),
+  (
+  '58a00d3b-0a17-4fc9-b6bf-6633df148795',
+  '若林智香',
+  NULL,
+  'わかばやしともか',
+  'cg',
+  '#fdff4e',
+  '/idol-images/cg_tomoka.webp'
+),
+  (
+  '5675226e-19ce-47f0-a1ce-a42d8ecb95ed',
+  '和久井留美',
+  NULL,
+  'わくいるみ',
+  'cg',
+  '#2e347e',
+  '/idol-images/cg_rumi.webp'
+)
+ON CONFLICT ("name") DO UPDATE SET
+  "cvName" = EXCLUDED."cvName",
+  "kana" = EXCLUDED.kana,
+  "production" = EXCLUDED.production,
+  "color" = EXCLUDED.color,
+  "imagePath" = EXCLUDED."imagePath";

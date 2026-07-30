@@ -39,6 +39,7 @@ interface Wish {
   id: string;
   createdAt: string;
   isCompleted: boolean;
+  comment: string | null;
   song: {
     id: string;
     title: string;
@@ -345,7 +346,7 @@ export default function UserProfileClient({
   }
 
   // 發起許願
-  async function handleMakeWish(songIds: string[]) {
+  async function handleMakeWish(songIds: string[], comment?: string) {
     if (songIds.length === 0) return;
     const songId = songIds[0];
     try {
@@ -355,6 +356,7 @@ export default function UserProfileClient({
         body: JSON.stringify({
           targetUserId: profileUser.id,
           songId,
+          comment: comment || null,
         }),
       });
 
@@ -1014,6 +1016,20 @@ export default function UserProfileClient({
                             <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
                               許願時間: {new Date(wish.createdAt).toLocaleDateString()}
                             </div>
+                            {wish.comment && (
+                              <div style={{
+                                fontSize: '12px',
+                                color: 'var(--text-secondary)',
+                                background: 'rgba(255, 255, 255, 0.03)',
+                                borderLeft: `2px solid ${themeColor}`,
+                                padding: '4px 8px',
+                                marginTop: '6px',
+                                borderRadius: '0 4px 4px 0',
+                                wordBreak: 'break-all',
+                              }}>
+                                💬 {wish.comment}
+                              </div>
+                            )}
                           </div>
 
                           <div style={{ display: 'flex', gap: '6px' }}>
@@ -1092,6 +1108,21 @@ export default function UserProfileClient({
                             <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
                               許願時間: {new Date(wish.createdAt).toLocaleDateString()}
                             </div>
+                            {wish.comment && (
+                              <div style={{
+                                fontSize: '12px',
+                                color: 'var(--text-muted)',
+                                background: 'rgba(255, 255, 255, 0.02)',
+                                borderLeft: '2px solid var(--border-color)',
+                                padding: '4px 8px',
+                                marginTop: '6px',
+                                borderRadius: '0 4px 4px 0',
+                                wordBreak: 'break-all',
+                                textDecoration: 'none',
+                              }}>
+                                💬 {wish.comment}
+                              </div>
+                            )}
                           </div>
 
                           <div style={{ display: 'flex', gap: '6px' }}>
@@ -1216,6 +1247,7 @@ export default function UserProfileClient({
             onConfirm={handleMakeWish}
             maxSelections={1}
             singleSelect={true}
+            showCommentInput={true}
           />
         )}
 

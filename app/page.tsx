@@ -881,6 +881,8 @@ export default function SongFamiliarityHub() {
                   onChange={(e) => setSortBy(e.target.value as any)}
                   className="form-input"
                   style={{
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
                     padding: '4px 24px 4px 8px',
                     fontSize: '12px',
                     width: 'auto',

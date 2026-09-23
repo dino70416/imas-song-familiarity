@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseAppleTrackId, isValidAppleTrackId, buildItunesLookupUrl, pickApplePreview, ItunesTrack } from '../lib/apple';
+import { parseAppleTrackId, isValidAppleTrackId, buildItunesLookupUrl, pickApplePreview, pickArtworkMap, ItunesTrack } from '../lib/apple';
 
 describe('parseAppleTrackId', () => {
   test('純數字直接回傳', () => {
@@ -76,5 +76,22 @@ describe('pickApplePreview', () => {
   test('trackId 不符或沒有 previewUrl 回 null', () => {
     expect(pickApplePreview(results, '999')).toBeNull();
     expect(pickApplePreview([{ wrapperType: 'track', trackId: 1, previewUrl: undefined }], '1')).toBeNull();
+  });
+});
+
+describe('多筆 lookup', () => {
+  test('buildItunesLookupUrl 接受陣列，用逗號串起', () => {
+    expect(buildItunesLookupUrl(['1', '2'])).toBe('https://itunes.apple.com/lookup?id=1%2C2&country=jp&entity=song');
+  });
+  test('pickArtworkMap 只挑曲目、把 100x100 換成 600x600', () => {
+    const results: ItunesTrack[] = [
+      { wrapperType: 'collection', artworkUrl100: 'https://x/album/100x100bb.jpg' },
+      { wrapperType: 'track', trackId: 11, artworkUrl100: 'https://x/a/100x100bb.jpg' },
+      { wrapperType: 'track', trackId: 22 },
+    ];
+    const map = pickArtworkMap(results);
+    expect(map.get('11')).toBe('https://x/a/600x600bb.jpg');
+    expect(map.has('22')).toBe(false);
+    expect(map.size).toBe(1);
   });
 });

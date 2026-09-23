@@ -34,9 +34,11 @@ export function isValidAppleTrackId(value: string): boolean {
   return /^\d{1,20}$/.test(value);
 }
 
-export function buildItunesLookupUrl(trackId: string): string {
+/** 一次可查多個 trackId（iTunes lookup 支援逗號分隔，實測 200 個以內 OK） */
+export function buildItunesLookupUrl(trackIds: string | string[]): string {
+  const ids = Array.isArray(trackIds) ? trackIds : [trackIds];
   const params = new URLSearchParams({
-    id: trackId,
+    id: ids.join(','),
     country: ITUNES_COUNTRY,
     entity: 'song',
   });
@@ -68,6 +70,22 @@ export interface ApplePreview {
   collectionName: string | null;
 }
 
+export function toLargeArtwork(artworkUrl100: string): string {
+  // artworkUrl100 的路徑尾巴是 "100x100bb.jpg"，換成 600x600 可拿高解析封面
+  return artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.');
+}
+
+/** 多筆 lookup → trackId → 600×600 封面（房間開房時一次抓 50 張） */
+export function pickArtworkMap(results: ItunesTrack[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const r of results) {
+    if ((r.wrapperType === 'track' || r.kind === 'song') && r.trackId !== undefined && r.artworkUrl100) {
+      map.set(String(r.trackId), toLargeArtwork(r.artworkUrl100));
+    }
+  }
+  return map;
+}
+
 /**
  * 從 lookup 結果挑出對應 trackId 的曲目並整理成 ApplePreview。
  * 沒有 previewUrl（少數曲目 Apple 不提供試聽）視為找不到。
@@ -81,8 +99,7 @@ export function pickApplePreview(results: ItunesTrack[], trackId: string): Apple
   return {
     trackId,
     previewUrl: track.previewUrl,
-    // artworkUrl100 的路徑尾巴是 "100x100bb.jpg"，換成 600x600 可拿高解析封面
-    artworkUrl: track.artworkUrl100 ? track.artworkUrl100.replace(/\/\d+x\d+bb\./, '/600x600bb.') : null,
+    artworkUrl: track.artworkUrl100 ? toLargeArtwork(track.artworkUrl100) : null,
     trackViewUrl: track.trackViewUrl ?? null,
     trackName: track.trackName ?? null,
     artistName: track.artistName ?? null,

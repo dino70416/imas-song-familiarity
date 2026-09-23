@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-vi.mock('@/lib/supabase/browser', () => ({ getSupabaseBrowser: () => null }));
+vi.mock('@/lib/supabase/browser', () => ({ getSupabaseBrowser: vi.fn(() => null) }));
 
+import { getSupabaseBrowser } from '@/lib/supabase/browser';
 import { clearSession, loadSession, saveSession } from '@/components/kamisabi/room/roomStorage';
 import { RoomApiError, roomApi } from '@/components/kamisabi/room/roomApi';
 import { useRoom } from '@/components/kamisabi/room/useRoom';
@@ -72,6 +73,26 @@ describe('useRoom（沒有 Supabase 時用輪詢）', () => {
     await act(async () => { await result.current.refresh(); });
     expect(result.current.error).toBeNull();
     expect(result.current.room?.version).toBe(2);
+  });
+
+  test('Realtime 訂閱成功後仍然每 4 秒輪詢（訂閱成功不代表事件一定會到）', async () => {
+    vi.useFakeTimers();
+    const fakeCh = { on: () => fakeCh, subscribe: (cb: (s: string) => void) => { cb('SUBSCRIBED'); return fakeCh; } };
+    vi.mocked(getSupabaseBrowser).mockReturnValue({ channel: () => fakeCh, removeChannel: async () => 'ok' } as unknown as ReturnType<typeof getSupabaseBrowser>);
+    const snapshot = { room: { id: 'r1', code: 'ABCDE', mode: null, status: 'lobby', brand: 'music_ml', songs: [], state: {}, version: 2 }, players: [], serverNow: Date.now() };
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify(snapshot), { status: 200 }));
+    try {
+      const { result } = renderHook(() => useRoom('ABCDE'));
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+      expect(result.current.room?.version).toBe(2);
+      expect(result.current.realtime).toBe(true);
+      const before = fetchMock.mock.calls.length;
+      await act(async () => { await vi.advanceTimersByTimeAsync(4100); });
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+      vi.mocked(getSupabaseBrowser).mockReturnValue(null);
+    }
   });
 });
 

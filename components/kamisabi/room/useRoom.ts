@@ -6,11 +6,14 @@ import type { PublicRoom } from '@/lib/kamisabiRoom/http';
 import type { PlayerRow, RoomRow } from '@/lib/kamisabiRoom/types';
 import { RoomApiError, roomApi } from './roomApi';
 
-const POLL_MS = 4000;
+/** 輪詢間隔：遊戲進行中 2 秒、大廳 / 結算 4 秒 */
+const POLL_PLAYING_MS = 2000;
+const POLL_IDLE_MS = 4000;
 
 /**
- * 房間公開狀態：初次 GET → Supabase Realtime 訂閱 rooms UPDATE / room_players INSERT；
- * 沒有 Supabase 環境變數或訂閱失敗時退回每 4 秒輪詢。
+ * 房間公開狀態：初次 GET，之後一直輪詢；Supabase Realtime（rooms UPDATE / room_players INSERT）只是加速器。
+ * 訂閱成功（SUBSCRIBED）不代表事件一定會到——實測 publishable key 訂閱成功卻收不到 RLS 表的變更——
+ * 所以輪詢不因訂閱成功而停。只有房間確定不存在（404）才停。
  * 另外算出「伺服器時間 − 本機時間」的偏移，讓 startsAt 能在各裝置同時觸發。
  */
 export function useRoom(code: string) {
@@ -73,12 +76,13 @@ export function useRoom(code: string) {
     };
   }, [roomId, refresh]);
 
-  // 輪詢備援（暫時性錯誤時照樣輪詢，網路恢復就自動清掉 error；只有 404 才停）
+  // 輪詢（暫時性錯誤時照樣輪詢，網路恢復就自動清掉 error；只有 404 才停）
+  const pollMs = room?.status === 'playing' ? POLL_PLAYING_MS : POLL_IDLE_MS;
   useEffect(() => {
-    if (realtime || notFound) return;
-    const t = setInterval(refresh, POLL_MS);
+    if (notFound) return;
+    const t = setInterval(refresh, pollMs);
     return () => clearInterval(t);
-  }, [realtime, notFound, refresh]);
+  }, [pollMs, notFound, refresh]);
 
   // 回到分頁時補抓一次
   useEffect(() => {

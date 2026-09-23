@@ -47,6 +47,13 @@ export function useKamisabi() {
       });
   }, []);
 
+  // 每個品牌有幾首可出題的歌；沒有歌的品牌不顯示在設定畫面
+  const brandCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of allSongs) counts[s.brand] = (counts[s.brand] ?? 0) + 1;
+    return counts;
+  }, [allSongs]);
+
   const matchingSongs = useMemo(
     () => (selectedBrands.length === 0 ? allSongs : allSongs.filter((s) => selectedBrands.includes(s.brand))),
     [allSongs, selectedBrands],
@@ -133,6 +140,7 @@ export function useKamisabi() {
     phase,
     error,
     allSongs,
+    brandCounts,
     selectedBrands,
     setSelectedBrands,
     shuffleOrder,

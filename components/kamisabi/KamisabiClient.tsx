@@ -17,6 +17,7 @@ export default function KamisabiClient() {
   const {
     phase,
     error,
+    brandCounts,
     selectedBrands,
     setSelectedBrands,
     shuffleOrder,
@@ -80,7 +81,7 @@ export default function KamisabiClient() {
                 🎯 出題品牌（可複選，不選代表全部）：
               </label>
               <div className="brand-picker-grid" style={{ display: 'grid', gap: '8px', width: '100%' }}>
-                {BRAND_VALUES.map((b) => {
+                {BRAND_VALUES.filter((b) => (brandCounts[b] ?? 0) > 0).map((b) => {
                   const checked = selectedBrands.includes(b);
                   const color = getBrandColor(b);
                   return (
@@ -96,6 +97,7 @@ export default function KamisabiClient() {
                         <BrandIcon brand={b} className="brand-card-svg" />
                       </span>
                       <span className="brand-card-name" style={{ fontSize: '12px' }}>{getBrandDisplayName(b)}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted, #9ca3af)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{brandCounts[b]} 首</span>
                       {checked && (
                         <span className="brand-card-check" style={{ background: color }} aria-hidden="true">✓</span>
                       )}

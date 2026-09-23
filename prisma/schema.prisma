@@ -41,6 +41,7 @@ model Song {
   highestPitch String?
   youtubeIds   String?         // 公式動画的 YouTube video ID，多個以逗號分隔
   releaseDate  String?         // 發行日期 (格式: YYYY-MM-DD)
+  appleTrackId String?         // iTunes / Apple Music 曲目 ID（scripts/seed-apple-ids.ts 手動補）；null = 未處理，'' = 確認沒有
   members      SongMember[]
   units        SongUnit[]
   selections   UserSelection[]

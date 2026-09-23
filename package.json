@@ -15,6 +15,7 @@
     "seed:song-pitches": "ts-node --project scripts/tsconfig.json scripts/seed-song-pitches.ts",
     "seed:dates": "ts-node --project scripts/tsconfig.json scripts/seed-release-dates.ts",
     "seed:youtube-ids": "ts-node --project scripts/tsconfig.json scripts/seed-youtube-ids.ts",
+    "seed:apple-ids": "ts-node --project scripts/tsconfig.json scripts/seed-apple-ids.ts",
     "sync:idol-images": "ts-node --project scripts/tsconfig.json scripts/sync-idol-images.ts",
     "fix:876": "ts-node --project scripts/tsconfig.json scripts/fix-876.ts",
     "test": "vitest run",

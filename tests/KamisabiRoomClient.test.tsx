@@ -30,7 +30,7 @@ function makeDoc() {
     {
       method: 'POST', match: /\/start$/, handle: (body) => {
         const b = body as { mode: 'intro' | 'karuta' | 'timeline' };
-        doc.room = { ...doc.room, mode: b.mode, status: 'playing', version: 1, state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
+        doc.room = { ...doc.room, mode: b.mode, status: 'playing', version: 1, state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, resolvedAt: null, ready: [], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
         return { json: { state: doc.room.state } };
       },
     },
@@ -51,7 +51,7 @@ describe('RoomClient', () => {
     expect(screen.getByText(/未来/)).toBeDefined();
     expect(calls.find((c) => /\/join$/.test(c.url))!.body).toEqual({ name: '未来' });
     expect(JSON.parse(localStorage.getItem('kamisabi:room:ABCDE')!)).toMatchObject({ playerId: 'p2', token: 'tok2' });
-    expect(screen.queryByText('開始遊戲')).toBeNull();
+    expect(screen.queryByText('進入遊戲')).toBeNull();
   });
 
   test('房主：大廳顯示房號、玩法選單；人數不足時不能開始；加入第二人後開始 → 進遊戲畫面', async () => {
@@ -59,17 +59,17 @@ describe('RoomClient', () => {
     localStorage.setItem('kamisabi:room:ABCDE', JSON.stringify({ playerId: 'p1', token: 'tok1', name: '房主' }));
     render(<RoomClient code="ABCDE" />);
     await screen.findByText('ABCDE');
-    const startBtn = screen.getByText('開始遊戲') as HTMLButtonElement;
+    const startBtn = screen.getByText('進入遊戲') as HTMLButtonElement;
     expect(startBtn.disabled).toBe(true);
     expect(screen.getByText(/至少需要 2 位玩家/)).toBeDefined();
 
     // 模擬另一個人加入（輪詢會抓到；這裡直接改資料再觸發 visibilitychange 讓它重抓）
     doc.players = [host, { id: 'p2', room_id: 'r1', name: '未来', seat: 1, is_host: false, joined_at: '' }];
     document.dispatchEvent(new Event('visibilitychange'));
-    await waitFor(() => expect((screen.getByText('開始遊戲') as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect((screen.getByText('進入遊戲') as HTMLButtonElement).disabled).toBe(false));
 
     fireEvent.click(screen.getByLabelText(/かるたモード/));
-    fireEvent.click(screen.getByText('開始遊戲'));
+    fireEvent.click(screen.getByText('進入遊戲'));
     await waitFor(() => expect(screen.getByText(/かるたモード · 房間 ABCDE/)).toBeDefined());
     expect(calls.find((c) => /\/start$/.test(c.url))!.body).toEqual({ mode: 'karuta' });
   });
@@ -97,7 +97,7 @@ describe('RoomClient', () => {
 
   test('遊戲已開始且沒有 session → 觀戰模式，不會白屏', async () => {
     const { doc } = makeDoc();
-    doc.room = { ...doc.room, mode: 'intro', status: 'playing', state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
+    doc.room = { ...doc.room, mode: 'intro', status: 'playing', state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, resolvedAt: null, ready: [], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
     render(<RoomClient code="ABCDE" />);
     await waitFor(() => expect(screen.getByText(/觀戰模式/)).toBeDefined());
     expect(screen.queryByLabelText('你的名字')).toBeNull();
@@ -105,7 +105,7 @@ describe('RoomClient', () => {
 
   test('結束 → 結算排名；找不到房間 → 錯誤訊息與回首頁連結', async () => {
     const { doc } = makeDoc();
-    doc.room = { ...doc.room, mode: 'intro', status: 'finished', state: { kind: 'intro', round: 2, currentSongId: null, startsAt: null, resolved: true, taken: { a: 'p1', b: 'p2' }, scores: { p1: 1, p2: 1 }, pendingDiscards: {}, lastResult: null } };
+    doc.room = { ...doc.room, mode: 'intro', status: 'finished', state: { kind: 'intro', round: 2, currentSongId: null, startsAt: null, resolved: true, resolvedAt: null, ready: ['p1', 'p2'], taken: { a: 'p1', b: 'p2' }, scores: { p1: 1, p2: 1 }, pendingDiscards: {}, lastResult: null } };
     doc.players = [host, { id: 'p2', room_id: 'r1', name: '未来', seat: 1, is_host: false, joined_at: '' }];
     const { unmount } = render(<RoomClient code="ABCDE" />);
     await waitFor(() => expect(screen.getByText(/遊戲結束/)).toBeDefined());

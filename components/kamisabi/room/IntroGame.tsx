@@ -7,7 +7,11 @@ import { useSyncedAudio } from './useSyncedAudio';
 import type { RoomSession } from './roomStorage';
 import type { PublicRoom } from '@/lib/kamisabiRoom/http';
 import type { IntroResult, IntroState, PlayerRow, RoomSong } from '@/lib/kamisabiRoom/types';
+import { allReady, nextCardDueAt } from '@/lib/kamisabiRoom/logic';
 import { ttsFileUrl } from '@/lib/karutaTts';
+
+/** 非房主的瀏覽器晚這麼久才觸發自動換題（當房主分頁沒開時的備援） */
+const FALLBACK_DELAY_MS = 2000;
 
 interface IntroGameProps {
   code: string;
@@ -24,8 +28,9 @@ type Banner = { kind: 'ok' | 'bad' | 'info'; text: string };
 
 /**
  * イントロ / かるた 搶牌畫面。
- * 房主按「下一張」→ 伺服器寫 currentSongId + startsAt →
+ * 所有人按「準備完成」（解鎖音訊並回報伺服器）→ 房主按「遊戲開始」出第一張 →
  * 每個瀏覽器自己預載試聽（イントロ）或朗讀檔（かるた），到 startsAt 同時播放 → 玩家點牌。
+ * 之後沒有「下一張」按鈕：有人取得後 5 秒、沒人答對 35 秒，瀏覽器自動呼叫 /next。
  */
 export default function IntroGame({ code, room, players, me, session, refresh, toLocalTime }: IntroGameProps) {
   const state = room.state as IntroState;
@@ -37,6 +42,8 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
   /** 伺服器回的可丟牌清單（お手つき 當下）；null 時退回用公開狀態推導 */
   const [discardCards, setDiscardCards] = useState<RoomSong[] | null>(null);
   const [audioNote, setAudioNote] = useState<string | null>(null);
+  /** 倒數顯示用的本機時鐘（每秒更新） */
+  const [now, setNow] = useState(() => Date.now());
 
   const songById = useMemo(() => new Map(room.songs.map((s) => [s.id, s])), [room.songs]);
   const sortedSongs = useMemo(() => [...room.songs].sort((a, b) => a.title.localeCompare(b.title, 'ja')), [room.songs]);
@@ -45,8 +52,16 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
 
   const isHost = !!me?.is_host;
   const myPending = me ? state.pendingDiscards[me.id] ?? 0 : 0;
-  const roundActive = !!state.currentSongId && !state.resolved;
+  const started = !!state.currentSongId;
+  const roundActive = started && !state.resolved;
   const remaining = room.songs.filter((s) => state.taken[s.id] === undefined).length;
+  const readyCount = players.filter((p) => state.ready.includes(p.id)).length;
+  const allReadyNow = allReady(state, players.map((p) => p.id));
+  const hasPending = Object.values(state.pendingDiscards).some((n) => n > 0);
+  /** 下一張最早可出的時間（伺服器時間 epoch ms；未開始為 0） */
+  const dueAt = nextCardDueAt(state);
+  const secsLeft = dueAt ? Math.max(0, Math.ceil((toLocalTime(new Date(dueAt).toISOString()) - now) / 1000)) : 0;
+  const showReadyButton = !unlocked || (!!me && !started && !state.ready.includes(me.id));
   // 待丟牌對話框：伺服器剛回的清單優先；重新整理後仍有待丟（公開狀態）也要打開
   const dialogCards = discardCards ?? (me && myPending > 0 ? ownedBy(me.id) : null);
 
@@ -104,9 +119,39 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     return () => clearTimeout(t);
   }, [flash]);
 
+  // 倒數顯示用的時鐘
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 自動換題（沒有「下一張」按鈕）：到 dueAt 就呼叫 /next，伺服器會再驗證時間。
+  // 房主先出手、其他玩家晚 FALLBACK_DELAY_MS 當備援（房主分頁沒開也不會卡住）；帶 round 所以同一回合只會成功一次。
+  // 伺服器說還沒到（時鐘偏差）→ 1 秒後再試；已換過 / 還有人沒丟牌 → 等下次狀態更新再排；斷線 → 3 秒後再試。
+  const round = state.round;
+  const token = session?.token ?? null;
+  useEffect(() => {
+    if (!token || !started) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    const fire = async () => {
+      try {
+        await roomApi.next(code, token, round);
+      } catch (e) {
+        if (cancelled) return;
+        if (!(e instanceof RoomApiError)) { timer = setTimeout(fire, 3000); return; }
+        if (e.code === 'NOT_DUE') { timer = setTimeout(fire, 1000); return; }
+      }
+      if (!cancelled) await refresh();
+    };
+    const wait = Math.max(0, toLocalTime(new Date(dueAt).toISOString()) - Date.now()) + (isHost ? 0 : FALLBACK_DELAY_MS) + 200;
+    timer = setTimeout(fire, wait);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [token, isHost, started, round, dueAt, hasPending, code, toLocalTime, refresh]);
+
   const claim = async (song: RoomSong) => {
     if (!session || !me || busy) return;
-    if (!roundActive) { setMessage({ kind: 'info', text: '等房主出下一張再搶！' }); return; }
+    if (!roundActive) { setMessage({ kind: 'info', text: '等下一張出來再搶！' }); return; }
     if (myPending > 0) { setMessage({ kind: 'bad', text: 'お手つき！請先選一張自己的牌丟回場上。' }); return; }
     setBusy(true);
     try {
@@ -149,12 +194,25 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     }
   };
 
-  const nextCard = async () => {
+  /** 「準備完成」：解鎖音訊（要在點擊事件裡）並回報伺服器 */
+  const getReady = async () => {
+    unlock();
+    if (!session) return;
+    try {
+      await roomApi.ready(code, session.token);
+    } catch (e) {
+      setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再按一次「準備完成」。' });
+    }
+    await refresh();
+  };
+
+  /** 房主按「遊戲開始」：出第一張（之後都自動） */
+  const startGame = async () => {
     if (!session || busy) return;
     setBusy(true);
     try {
-      const r = await roomApi.next(code, session.token);
-      setMessage(r.finished ? { kind: 'ok', text: '所有歌牌都取完了！' } : null);
+      await roomApi.next(code, session.token, state.round);
+      setMessage(null);
     } catch (e) {
       setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再試一次。' });
     } finally {
@@ -185,7 +243,17 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     return `${nameOf(r.playerId)} 把『${title}』丟回場上。`;
   };
 
-  const playStatus = playing ? '🎵 播放中…' : roundActive ? '⏳ 準備播放…' : state.resolved ? '✅ 本回合結束' : '等待房主出題';
+  const playStatus = !started
+    ? isHost
+      ? allReadyNow ? '✅ 大家都準備好了，可以開始！' : `⏳ 等待大家準備（${readyCount}/${players.length}）`
+      : `⏳ 等待房主開始（${readyCount}/${players.length} 已準備）`
+    : state.resolved
+      ? `⏱ ${secsLeft} 秒後自動出下一張`
+      : playing
+        ? '🎵 播放中…'
+        : state.startsAt && now < toLocalTime(state.startsAt)
+          ? '⏳ 準備播放…'
+          : `🤔 沒人答對的話 ${secsLeft} 秒後換下一張`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -195,14 +263,15 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
         <div style={{ fontWeight: 700 }}>
           {isKaruta ? 'かるたモード' : 'イントロモード'} · 房間 {room.code} · 第 <strong style={{ fontSize: '22px', color: 'var(--accent-color)' }}>{state.round}</strong> 張 · 剩 {remaining} 張
         </div>
-        {!unlocked ? (
-          <button type="button" className="btn btn-primary" onClick={unlock} style={{ fontWeight: 900 }}>🔊 準備完成</button>
-        ) : (
-          <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{playStatus}</span>
+        {showReadyButton && (
+          <button type="button" className="btn btn-primary" onClick={getReady} style={{ fontWeight: 900 }}>🔊 準備完成</button>
         )}
+        <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{playStatus}</span>
         {isHost && (
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={nextCard}>▶ 下一張</button>
+            {!started && allReadyNow && (
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={startGame} style={{ fontWeight: 900 }}>▶ 遊戲開始</button>
+            )}
             <button type="button" className="btn btn-secondary" disabled={busy} onClick={endGame}>結束遊戲</button>
           </div>
         )}
@@ -216,7 +285,7 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
       <div className="kamisabi-room-panel" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', fontSize: '14px' }}>
         {players.map((p) => (
           <span key={p.id} style={{ fontWeight: p.id === me?.id ? 900 : 600 }}>
-            {p.is_host ? '👑 ' : ''}{p.name}：{state.scores[p.id] ?? 0} 分
+            {!started && state.ready.includes(p.id) ? '✅ ' : ''}{p.is_host ? '👑 ' : ''}{p.name}：{state.scores[p.id] ?? 0} 分
             {(state.pendingDiscards[p.id] ?? 0) > 0 ? '（お手つき待丟）' : ''}
           </span>
         ))}

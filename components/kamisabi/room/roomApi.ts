@@ -48,7 +48,9 @@ export const roomApi = {
   get: (code: string) => call<RoomSnapshot>(base(code)),
   join: (code: string, name: string) => call<{ playerId: string; token: string; seat: number }>(`${base(code)}/join`, { body: { name } }),
   start: (code: string, token: string, mode: RoomMode) => call<{ state: IntroState | TimelineState }>(`${base(code)}/start`, { body: { mode }, token }),
-  next: (code: string, token: string) => call<{ state: IntroState; finished: boolean }>(`${base(code)}/next`, { body: {}, token }),
+  ready: (code: string, token: string) => call<{ state: IntroState }>(`${base(code)}/ready`, { body: {}, token }),
+  /** round：呼叫時看到的回合；伺服器已經換過就回 409 ROUND_ADVANCED，不會跳過一張 */
+  next: (code: string, token: string, round: number) => call<{ state: IntroState; finished: boolean }>(`${base(code)}/next`, { body: { round }, token }),
   /** round = 點牌時看到的回合，伺服器用來分辨「慢了一步（已換題）」與真正的お手つき */
   claim: (code: string, token: string, songId: string, round: number) =>
     call<{ result: 'correct' | 'otetsuki' | 'otetsuki_no_cards'; cards: RoomSong[]; finished: boolean }>(`${base(code)}/claim`, { body: { songId, round }, token }),

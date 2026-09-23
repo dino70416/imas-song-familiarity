@@ -1,5 +1,5 @@
 import { AppError } from '@/lib/errors';
-import { NEXT_CARD_DELAY_MS, ROOM_CODE_LENGTH, TIMELINE_HAND_SIZE, type IntroState, type RoomSong, type TimelineState } from './types';
+import { AUTO_NEXT_DELAY_MS, NEXT_CARD_DELAY_MS, ROOM_CODE_LENGTH, ROUND_TIMEOUT_MS, TIMELINE_HAND_SIZE, type IntroState, type RoomSong, type TimelineState } from './types';
 
 /**
  * KAMISABI 房間規則的純函式：不碰 DB、不碰時間（now 由外面傳入）、隨機由 random 傳入方便測試。
@@ -30,6 +30,8 @@ export function createIntroState(): IntroState {
     currentSongId: null,
     startsAt: null,
     resolved: false,
+    resolvedAt: null,
+    ready: [],
     taken: {},
     scores: {},
     pendingDiscards: {},
@@ -80,8 +82,31 @@ export function pickNextSong(
     currentSongId: next.id,
     startsAt: new Date(now + NEXT_CARD_DELAY_MS).toISOString(),
     resolved: false,
+    resolvedAt: null,
     lastResult: null,
   };
+}
+
+/** 玩家按「準備完成」（可重複按） */
+export function markReady(state: IntroState, playerId: string): IntroState {
+  if (state.ready.includes(playerId)) return state;
+  return { ...state, ready: [...state.ready, playerId] };
+}
+
+/** 所有玩家都按過「準備完成」才能出第一張 */
+export function allReady(state: IntroState, playerIds: string[]): boolean {
+  return playerIds.every((id) => state.ready.includes(id));
+}
+
+/**
+ * 下一張最早可以出的時間（epoch ms）。
+ * 未開始 → 0（由房主按「遊戲開始」）；有人取得 → resolvedAt + AUTO_NEXT_DELAY_MS；
+ * 沒人答對 → startsAt + ROUND_TIMEOUT_MS。伺服器與瀏覽器都用這個算，時間一致。
+ */
+export function nextCardDueAt(state: IntroState): number {
+  if (!state.currentSongId || !state.startsAt) return 0;
+  if (state.resolved) return state.resolvedAt ? Date.parse(state.resolvedAt) + AUTO_NEXT_DELAY_MS : 0;
+  return Date.parse(state.startsAt) + ROUND_TIMEOUT_MS;
 }
 
 export type ClaimResult = 'correct' | 'otetsuki' | 'otetsuki_no_cards';
@@ -94,6 +119,7 @@ export function applyClaim(
   songs: RoomSong[],
   playerId: string,
   songId: string,
+  now: number = Date.now(),
 ): { state: IntroState; result: ClaimResult } {
   if (!state.currentSongId) throw new AppError('目前沒有進行中的題目。', 409, 'NO_ACTIVE_ROUND');
   if (state.resolved) throw new AppError('慢了一步，這張已經被取走了。', 409, 'ROUND_RESOLVED');
@@ -112,6 +138,7 @@ export function applyClaim(
         taken,
         scores: computeScores(taken, songs),
         resolved: true,
+        resolvedAt: new Date(now).toISOString(),
         lastResult: { type: 'correct', playerId, songId, round: state.round },
       },
     };

@@ -17,7 +17,7 @@ interface LobbyProps {
 }
 
 const MODE_HINT: Record<RoomMode, string> = {
-  intro: '房主按「下一張」後 3 秒，所有人同時聽 30 秒試聽，聽出是哪首就點那張歌牌。點錯要把自己的一張牌丟回場上。アルバム 1 分、シングル 2 分。',
+  intro: '進入遊戲後所有人按「準備完成」，房主再按「遊戲開始」。每題 3 秒後所有人同時聽 30 秒試聽，聽出是哪首就點那張歌牌；答對後 5 秒自動出下一張，沒人答對 35 秒也會換。點錯要把自己的一張牌丟回場上。アルバム 1 分、シングル 2 分。',
   karuta: '同イントロ，但播的是副歌歌詞的朗讀（沒有朗讀檔的歌會用裝置的語音合成）。',
   timeline: '每人 5 張手牌（不能看發行日），輪流把牌放進時間軸。放錯罰抽一張，先出完手牌的人贏。2–8 人。',
 };
@@ -87,7 +87,7 @@ export default function Lobby({ code, room, players, me, session, refresh }: Lob
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: '8px 0 16px' }}>{MODE_HINT[mode]}</p>
             {error && <div className="kamisabi-banner is-bad" style={{ marginBottom: '12px' }}>{error}</div>}
             <button type="button" className="btn btn-primary" disabled={!enough || busy} onClick={start} style={{ width: '100%', padding: '14px', fontSize: '18px', borderRadius: '14px' }}>
-              開始遊戲
+              進入遊戲
             </button>
             {!enough && <p style={{ fontSize: '13px', color: '#b91c1c', marginTop: '8px' }}>至少需要 {MIN_PLAYERS} 位玩家，把邀請連結傳給朋友吧。</p>}
           </fieldset>

@@ -429,8 +429,8 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API ro
 - 不需註冊。加入時 API 產生 `token` 存 `room_secrets`，回給瀏覽器存 `localStorage`；之後每個動作都帶 token。房主是第一位加入者。
 
 ### イントロ / かるた（共用一套搶牌邏輯）
-1. 房主按「下一張」→ API 隨機挑一張未被取走的卡，寫 `currentSongId`、`startsAt = now + 3s`。
-2. 各瀏覽器收到後預載試聽（イントロ）或朗讀檔（かるた），到 `startsAt` 同時播放。播放前需玩家點過一次「準備完成」以解除 iOS 自動播放限制。
+1. 所有人按「準備完成」（解除 iOS 自動播放限制並 `POST /ready`）→ 全員到齊後房主按「遊戲開始」（`POST /next`）→ API 隨機挑一張未被取走的卡，寫 `currentSongId`、`startsAt = now + 3s`。之後**沒有「下一張」按鈕**：有人取得後 5 秒、沒人答對 35 秒，玩家的瀏覽器自動 `POST /next {round}`，伺服器自己驗證時間（房主優先、其他人晚 2 秒當備援）。
+2. 各瀏覽器收到後預載試聽（イントロ）或朗讀檔（かるた），到 `startsAt` 同時播放。
 3. 玩家點卡 → `POST /claim {songId}`。伺服器：
    - 若 `songId === currentSongId` 且尚未有人取得 → `update rooms set state=..., version=version+1 where id=? and version=?`；**第一個成功的 UPDATE 即得卡**（樂觀鎖保證同回合只有一人）。
    - 若點錯 → **お手つき**：依規則從該玩家已取得的牌中丟一張。實作：API 回 `{otetsuki: true, cards: [...]}`，前端跳選單讓玩家自選；沒有牌則無事。被丟的卡 `taken` 移除、回到場上。
@@ -469,7 +469,8 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API ro
 | POST | `/api/kamisabi/room` | 開房：`{name, brand}` → 快照 Neon 曲目、建 rooms / room_players / room_secrets，回 `{code, playerId, token}` |
 | POST | `/api/kamisabi/room/[code]/join` | 加入：`{name}` → 回 `{playerId, token}` |
 | POST | `/api/kamisabi/room/[code]/start` | 房主：`{mode}` → 依模式初始化 state |
-| POST | `/api/kamisabi/room/[code]/next` | 房主：出下一張（intro / karuta） |
+| POST | `/api/kamisabi/room/[code]/ready` | 玩家：按「準備完成」（intro / karuta） |
+| POST | `/api/kamisabi/room/[code]/next` | 第一張：房主「遊戲開始」（需全員 ready）；之後任何玩家到時間自動觸發，`{round}` 防重複（intro / karuta） |
 | POST | `/api/kamisabi/room/[code]/claim` | 玩家：`{songId}` 搶牌；回正確 / お手つき |
 | POST | `/api/kamisabi/room/[code]/discard` | 玩家：お手つき後選擇丟哪張 |
 | POST | `/api/kamisabi/room/[code]/place` | 玩家：`{songId, slot}` 放進時間軸 |
@@ -547,6 +548,7 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API ro
 - 時間軸的山札不另外存：山札 = 有發行日的歌 − 時間軸 − 所有手牌，抽牌時隨機。
 - お手つき後未丟牌前不能再搶；全部取完且沒有待丟才結束。
 - 沒有 session 而房間已開始 → 觀戰模式（只能看，不能加入）。
+- （2026-09-24）搶牌模式全自動換題：`IntroState` 多 `ready[]`、`resolvedAt`；`POST /ready` 記錄準備；`/next` 第一張限房主且需全員 ready，之後任何玩家到 `nextCardDueAt`（取得後 `AUTO_NEXT_DELAY_MS` 5 秒 / 沒人答對 `ROUND_TIMEOUT_MS` 35 秒）即可觸發，帶 `round` 不會跳張。大廳按鈕改名「進入遊戲」，遊戲畫面全員 ready 後房主才看到「遊戲開始」。
 
 上線步驟：
 1. Supabase Dashboard → SQL editor 執行 `supabase/schema.sql`。

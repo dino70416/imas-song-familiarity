@@ -1,13 +1,16 @@
 import { describe, expect, test } from 'vitest';
 import { AppError } from '@/lib/errors';
-import type { RoomSong } from '@/lib/kamisabiRoom/types';
+import { AUTO_NEXT_DELAY_MS, ROUND_TIMEOUT_MS, type RoomSong } from '@/lib/kamisabiRoom/types';
 import {
+  allReady,
   applyClaim,
   applyDiscard,
   computeScores,
   createIntroState,
   generateRoomCode,
   isIntroFinished,
+  markReady,
+  nextCardDueAt,
   ownedSongs,
   pickNextSong,
 } from '@/lib/kamisabiRoom/logic';
@@ -242,5 +245,52 @@ describe('リリースタイムライン', () => {
     expect(r.state.winnerId).toBe('p1');
     expect(r.state.handCounts.p1).toBe(0);
     try { applyPlace(r.state, ALL, r.hands, 'p2', 'd02', 0); } catch (e) { expect(codeOf(e)).toBe('GAME_OVER'); }
+  });
+});
+
+describe('準備完成與自動換題', () => {
+  test('createIntroState：ready 空、resolvedAt null', () => {
+    const s = createIntroState();
+    expect(s.ready).toEqual([]);
+    expect(s.resolvedAt).toBeNull();
+    expect(s.currentSongId).toBeNull();
+  });
+
+  test('markReady 可重複呼叫；allReady 要所有玩家都按過', () => {
+    let s = createIntroState();
+    expect(allReady(s, ['p1', 'p2'])).toBe(false);
+    s = markReady(s, 'p1');
+    s = markReady(s, 'p1');
+    expect(s.ready).toEqual(['p1']);
+    expect(allReady(s, ['p1', 'p2'])).toBe(false);
+    s = markReady(s, 'p2');
+    expect(allReady(s, ['p1', 'p2'])).toBe(true);
+  });
+
+  test('applyClaim 正確時記下 resolvedAt；點錯不記', () => {
+    const s0 = pickNextSong(createIntroState(), SONGS, NOW, () => 0)!; // a
+    const wrong = applyClaim(s0, SONGS, 'p1', 'b', NOW + 1000);
+    expect(wrong.state.resolvedAt).toBeNull();
+    const ok = applyClaim(s0, SONGS, 'p1', 'a', NOW + 2000);
+    expect(ok.state.resolvedAt).toBe(new Date(NOW + 2000).toISOString());
+  });
+
+  test('pickNextSong 清掉 resolvedAt、保留 ready', () => {
+    const s0 = markReady(pickNextSong(createIntroState(), SONGS, NOW, () => 0)!, 'p1');
+    const taken = applyClaim(s0, SONGS, 'p1', 'a', NOW + 2000).state;
+    const s1 = pickNextSong(taken, SONGS, NOW + 9000, () => 0)!;
+    expect(s1.resolvedAt).toBeNull();
+    expect(s1.resolved).toBe(false);
+    expect(s1.ready).toEqual(['p1']);
+  });
+
+  test('nextCardDueAt：未開始 → 0；有人取得 → resolvedAt + 5s；沒人答對 → startsAt + 35s', () => {
+    expect(nextCardDueAt(createIntroState())).toBe(0);
+    const s0 = pickNextSong(createIntroState(), SONGS, NOW, () => 0)!;
+    expect(nextCardDueAt(s0)).toBe(NOW + 3000 + ROUND_TIMEOUT_MS);
+    const taken = applyClaim(s0, SONGS, 'p1', 'a', NOW + 2000).state;
+    expect(nextCardDueAt(taken)).toBe(NOW + 2000 + AUTO_NEXT_DELAY_MS);
+    // 舊資料沒有 resolvedAt → 視為馬上可換
+    expect(nextCardDueAt({ ...taken, resolvedAt: null })).toBe(0);
   });
 });

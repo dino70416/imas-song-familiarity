@@ -17,8 +17,12 @@ export const ROOM_MODE_LABEL: Record<RoomMode, string> = {
 export const MAX_PLAYERS = 8;
 export const MIN_PLAYERS = 2;
 export const TIMELINE_HAND_SIZE = 5;
-/** 房主按「下一張」後幾毫秒開始同步播放（讓所有人先預載） */
+/** 出題後幾毫秒開始同步播放（讓所有人先預載） */
 export const NEXT_CARD_DELAY_MS = 3000;
+/** 有人取得後幾毫秒自動出下一張 */
+export const AUTO_NEXT_DELAY_MS = 5000;
+/** 沒人答對時，從開始播放算起幾毫秒自動換下一張（30 秒試聽 + 5 秒） */
+export const ROUND_TIMEOUT_MS = 35_000;
 export const ROOM_CODE_LENGTH = 5;
 export const PLAYER_NAME_MAX = 12;
 
@@ -45,6 +49,8 @@ export interface IntroState {
   currentSongId: string | null;
   startsAt: string | null;               // ISO
   resolved: boolean;                     // 本回合已有人取得
+  resolvedAt: string | null;             // ISO；有人取得的時間，自動換題以此計時
+  ready: string[];                       // 按過「準備完成」的 playerId；全員到齊房主才能開始
   taken: Record<string, string>;         // songId → playerId
   scores: Record<string, number>;        // playerId → points
   pendingDiscards: Record<string, number>; // playerId → お手つき後還沒丟的張數

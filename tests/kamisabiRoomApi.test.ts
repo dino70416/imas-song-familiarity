@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { FakeStore } from './helpers/fakeRoomStore';
-import type { RoomSong } from '@/lib/kamisabiRoom/types';
+import { AUTO_NEXT_DELAY_MS, NEXT_CARD_DELAY_MS, ROUND_TIMEOUT_MS, type RoomSong } from '@/lib/kamisabiRoom/types';
 
 // vi.mock 會被提升到最上面，工廠內不能碰頂層變數 → 在工廠裡動態 import 假 store
 vi.mock('@/lib/kamisabiRoom/store', async () => {
@@ -18,6 +18,11 @@ import { GET as getRoom } from '@/app/api/kamisabi/room/[code]/route';
 import { POST as joinRoom } from '@/app/api/kamisabi/room/[code]/join/route';
 
 const fake = store as unknown as FakeStore;
+
+// 路由用 Date.now() 判斷「可以換下一張了沒」；測試用位移的假時鐘往前撥
+const realNow = Date.now;
+let clockOffset = 0;
+const advance = (ms: number) => { clockOffset += ms; };
 
 const song = (id: string, points: 1 | 2 = 1, releaseDate: string | null = null): RoomSong => ({
   id, title: `Song ${id}`, brand: 'music_ml', trackId: `t${id}`, artworkUrl: null, releaseDate, points,
@@ -51,6 +56,11 @@ beforeEach(() => {
   fake.reset();
   resetRateLimits();
   buildRoomSongs.mockReset().mockResolvedValue(SONGS);
+  clockOffset = 0;
+  vi.spyOn(Date, 'now').mockImplementation(() => realNow() + clockOffset);
+});
+afterEach(() => {
+  vi.mocked(Date.now).mockRestore();
 });
 
 describe('POST /api/kamisabi/room', () => {
@@ -135,6 +145,7 @@ import { POST as nextCard } from '@/app/api/kamisabi/room/[code]/next/route';
 import { POST as claimCard } from '@/app/api/kamisabi/room/[code]/claim/route';
 import { POST as discardCard } from '@/app/api/kamisabi/room/[code]/discard/route';
 import { POST as endRoom } from '@/app/api/kamisabi/room/[code]/end/route';
+import { POST as readyUp } from '@/app/api/kamisabi/room/[code]/ready/route';
 import type { IntroState } from '@/lib/kamisabiRoom/types';
 
 async function introGame() {
@@ -143,6 +154,14 @@ async function introGame() {
   const res = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, host.token), ctx(host.code));
   expect(res.status).toBe(200);
   return { host, guest, code: host.code };
+}
+/** 兩人都按「準備完成」、房主按「遊戲開始」→ 第 1 張 */
+async function dealFirstCard(code: string, host: { token: string }, guest: { token: string }) {
+  for (const p of [host, guest]) {
+    expect((await readyUp(post(`/api/kamisabi/room/${code}/ready`, {}, p.token), ctx(code))).status).toBe(200);
+  }
+  const res = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 0 }, host.token), ctx(code));
+  expect(res.status).toBe(200);
 }
 async function state(code: string) {
   return (await fake.getRoomByCode(code))!.state as IntroState;
@@ -167,17 +186,40 @@ describe('start / next / claim / discard / end', () => {
     expect((await again.json()).code).toBe('ROOM_STARTED');
   });
 
-  test('next → claim 正確 → next → 全部取完自動 finished', async () => {
+  test('ready：大廳時 409 NOT_PLAYING', async () => {
+    const host = await openRoom();
+    const guest = await joinAs(host.code, 'guest');
+    const inLobby = await readyUp(post(`/api/kamisabi/room/${host.code}/ready`, {}, guest.token), ctx(host.code));
+    expect(inLobby.status).toBe(409);
+    expect((await inLobby.json()).code).toBe('NOT_PLAYING');
+  });
+
+  test('準備完成 → 房主遊戲開始 → claim 正確 → 5 秒後任何人都能觸發下一張 → 全部取完自動 finished', async () => {
     const { host, guest, code } = await introGame();
-    const n1 = await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
-    expect(n1.status).toBe(200);
+    // 還沒人準備：房主不能開始
+    const early = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 0 }, host.token), ctx(code));
+    expect(early.status).toBe(409);
+    expect((await early.json()).code).toBe('NOT_ALL_READY');
+    expect((await readyUp(post(`/api/kamisabi/room/${code}/ready`, {}, guest.token), ctx(code))).status).toBe(200);
+    expect((await readyUp(post(`/api/kamisabi/room/${code}/ready`, {}, guest.token), ctx(code))).status).toBe(200); // 重複按沒事
     let s = await state(code);
+    expect(s.ready).toEqual([guest.playerId]);
+    expect((await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 0 }, host.token), ctx(code))).status).toBe(409);
+    await readyUp(post(`/api/kamisabi/room/${code}/ready`, {}, host.token), ctx(code));
+    // 非房主永遠不能出第一張
+    expect((await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 0 }, guest.token), ctx(code))).status).toBe(403);
+
+    const n1 = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 0 }, host.token), ctx(code));
+    expect(n1.status).toBe(200);
+    s = await state(code);
     expect(s.round).toBe(1);
     expect(s.currentSongId).not.toBeNull();
     expect(Date.parse(s.startsAt!)).toBeGreaterThan(Date.now());
 
-    // 非房主不能出題
-    expect((await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, guest.token), ctx(code))).status).toBe(403);
+    // 題目進行中、沒人答對：還沒到時限誰都不能換
+    const tooSoon = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 1 }, host.token), ctx(code));
+    expect(tooSoon.status).toBe(409);
+    expect((await tooSoon.json()).code).toBe('NOT_DUE');
 
     const c1 = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, guest.token), ctx(code));
     expect(c1.status).toBe(200);
@@ -185,31 +227,64 @@ describe('start / next / claim / discard / end', () => {
     s = await state(code);
     expect(s.taken[s.currentSongId!]).toBe(guest.playerId);
     expect(s.resolved).toBe(true);
+    expect(Date.now() - Date.parse(s.resolvedAt!)).toBeLessThan(2000);
 
     // 慢了一步
     const late = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, host.token), ctx(code));
     expect(late.status).toBe(409);
     expect((await late.json()).code).toBe('ROUND_RESOLVED');
 
-    // 把剩下兩張都拿掉 → finished
-    for (let i = 0; i < 2; i++) {
-      await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
-      s = await state(code);
-      const res = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, host.token), ctx(code));
-      expect(res.status).toBe(200);
-    }
+    // 取得後 5 秒內還不能換
+    const notYet = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 1 }, guest.token), ctx(code));
+    expect((await notYet.json()).code).toBe('NOT_DUE');
+    advance(AUTO_NEXT_DELAY_MS + 1);
+    // 帶過期的 round（別的分頁已經換過）→ 409，不會跳過一張
+    const stale = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 0 }, guest.token), ctx(code));
+    expect(stale.status).toBe(409);
+    expect((await stale.json()).code).toBe('ROUND_ADVANCED');
+    // 時間到：非房主也能觸發（房主分頁沒開也不會卡住）
+    const n2 = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 1 }, guest.token), ctx(code));
+    expect(n2.status).toBe(200);
+    s = await state(code);
+    expect(s.round).toBe(2);
+    expect(s.resolved).toBe(false);
+    expect(s.resolvedAt).toBeNull();
+
+    // 把剩下兩張都拿掉：最後一張被取走時由 claim 直接結束
+    s = await state(code);
+    expect((await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, host.token), ctx(code))).status).toBe(200);
+    advance(AUTO_NEXT_DELAY_MS + 1);
+    expect((await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, guest.token), ctx(code))).status).toBe(200);
+    s = await state(code);
+    const last = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, host.token), ctx(code));
+    expect(await last.json()).toMatchObject({ result: 'correct', finished: true });
     expect((await fake.getRoomByCode(code))!.status).toBe('finished');
     s = await state(code);
     expect(s.scores[host.playerId]).toBeGreaterThan(0);
   });
 
+  test('沒人答對：開始播放 35 秒後才能換下一張，那首歌留在場上', async () => {
+    const { host, guest, code } = await introGame();
+    await dealFirstCard(code, host, guest);
+    const s1 = await state(code);
+    advance(NEXT_CARD_DELAY_MS + ROUND_TIMEOUT_MS - 1000);
+    expect((await (await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 1 }, guest.token), ctx(code))).json()).code).toBe('NOT_DUE');
+    advance(1001);
+    expect((await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 1 }, guest.token), ctx(code))).status).toBe(200);
+    const s2 = await state(code);
+    expect(s2.round).toBe(2);
+    expect(s2.taken).toEqual({});
+    expect(s2.currentSongId).not.toBe(s1.currentSongId);
+  });
+
   test('お手つき：有牌的人收到可丟的牌，丟完才能再搶', async () => {
     const { host, guest, code } = await introGame();
-    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    await dealFirstCard(code, host, guest);
     let s = await state(code);
     await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, guest.token), ctx(code));
     const firstCard = s.currentSongId!;
 
+    advance(AUTO_NEXT_DELAY_MS + 1);
     await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
     s = await state(code);
     const wrong = SONGS.find((x) => x.id !== s.currentSongId && x.id !== firstCard)!.id;
@@ -234,13 +309,15 @@ describe('start / next / claim / discard / end', () => {
     expect(ok.status).toBe(200);
   });
 
-  test('claim 撞上房主的 next（寫入前被搶先換題）→ 409 ROUND_RESOLVED，不算お手つき', async () => {
+  test('claim 撞上自動換題（寫入前時限到、先被換題）→ 409 ROUND_RESOLVED，不算お手つき', async () => {
     const { host, guest, code } = await introGame();
-    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    await dealFirstCard(code, host, guest);
     const s1 = await state(code);
-    // guest 點的是第 1 回合的正確牌，但在 guest 寫入前房主先出了第 2 張
+    // guest 點的是第 1 回合的正確牌，但在 guest 寫入前時限到了、別人的瀏覽器先換了第 2 張
+    advance(NEXT_CARD_DELAY_MS + ROUND_TIMEOUT_MS + 1);
     fake._setBeforeUpdate(async () => {
-      await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+      const n = await nextCard(post(`/api/kamisabi/room/${code}/next`, { round: 1 }, host.token), ctx(code));
+      expect(n.status).toBe(200);
     });
     const res = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s1.currentSongId, round: s1.round }, guest.token), ctx(code));
     expect(res.status).toBe(409);
@@ -253,7 +330,7 @@ describe('start / next / claim / discard / end', () => {
 
   test('兩人同時點對牌：後寫入的人重試後拿到 409 ROUND_RESOLVED，不是 500 也不是お手つき', async () => {
     const { host, guest, code } = await introGame();
-    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    await dealFirstCard(code, host, guest);
     const s1 = await state(code);
     fake._setBeforeUpdate(async () => {
       const first = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s1.currentSongId, round: s1.round }, host.token), ctx(code));
@@ -269,7 +346,7 @@ describe('start / next / claim / discard / end', () => {
 
   test('沒牌的人點錯 → otetsuki_no_cards，不用丟牌', async () => {
     const { host, guest, code } = await introGame();
-    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    await dealFirstCard(code, host, guest);
     const s = await state(code);
     const wrong = SONGS.find((x) => x.id !== s.currentSongId)!.id;
     const o = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: wrong }, guest.token), ctx(code));
@@ -393,7 +470,7 @@ describe('GET /api/kamisabi/room/[code]/lyrics', () => {
     const code = host.code;
     const url = (songId: string) => `/api/kamisabi/room/${code}/lyrics?songId=${songId}`;
     await startRoom(post(`/api/kamisabi/room/${code}/start`, { mode: 'intro' }, host.token), ctx(code));
-    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    await dealFirstCard(code, host, guest);
     expect((await getLyrics(get(url('a'), guest.token), ctx(code))).status).toBe(403);
 
     // 換成かるた

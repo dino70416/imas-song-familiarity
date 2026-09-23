@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { mockRoomFetch } from './helpers/mockRoomFetch';
 import IntroGame from '../components/kamisabi/room/IntroGame';
@@ -15,7 +15,7 @@ const players = [host, guest];
 function roomWith(state: Partial<IntroState>, mode: 'intro' | 'karuta' = 'intro'): PublicRoom {
   return {
     id: 'r1', code: 'ABCDE', mode, status: 'playing', brand: 'music_ml', songs: SONGS, version: 3,
-    state: { kind: 'intro', round: 1, currentSongId: 'a', startsAt: new Date(Date.now() + 50).toISOString(), resolved: false, taken: {}, scores: {}, pendingDiscards: {}, lastResult: null, ...state },
+    state: { kind: 'intro', round: 1, currentSongId: 'a', startsAt: new Date(Date.now() + 50).toISOString(), resolved: false, resolvedAt: null, ready: ['p1', 'p2'], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null, ...state },
   };
 }
 const session = { playerId: 'p2', token: 'tok', name: '未来' };
@@ -27,11 +27,15 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
 });
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('IntroGame', () => {
   test('顯示所有歌牌、載入試聽並排程播放、點對牌 → claim → 綠框與訊息', async () => {
     const calls = mockRoomFetch([
       { match: /\/api\/apple\/preview\?trackId=ta/, handle: () => ({ json: preview }) },
+      { method: 'POST', match: /\/ready$/, handle: () => ({ json: { state: {} } }) },
       { method: 'POST', match: /\/claim$/, handle: () => ({ json: { result: 'correct', cards: [], finished: false } }) },
     ]);
     const refresh = vi.fn().mockResolvedValue(undefined);
@@ -87,21 +91,99 @@ describe('IntroGame', () => {
     await waitFor(() => expect(screen.getByText('慢了一步，這張已經被取走了。')).toBeDefined());
   });
 
-  test('房主看得到「下一張」與「結束遊戲」；觀戰者不能點牌', async () => {
+  test('開始前：「準備完成」送 /ready；全員到齊只有房主看到「▶ 遊戲開始」→ /next round 0；沒有「下一張」；觀戰者不能點牌', async () => {
     const calls = mockRoomFetch([
       { match: /\/api\/apple\/preview/, handle: () => ({ json: preview }) },
+      { method: 'POST', match: /\/ready$/, handle: () => ({ json: { state: {} } }) },
       { method: 'POST', match: /\/next$/, handle: () => ({ json: { state: {}, finished: false } }) },
     ]);
-    const { unmount } = render(<IntroGame code="ABCDE" room={roomWith({ currentSongId: null, startsAt: null })} players={players} me={host} session={{ playerId: 'p1', token: 'htok', name: '房主' }} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
-    fireEvent.click(screen.getByText('▶ 下一張'));
+    const hostSession = { playerId: 'p1', token: 'htok', name: '房主' };
+    const notStarted = { round: 0, currentSongId: null, startsAt: null };
+    const { rerender, unmount } = render(<IntroGame code="ABCDE" room={roomWith({ ...notStarted, ready: ['p2'] })} players={players} me={host} session={hostSession} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    expect(screen.getByText(/等待大家準備（1\/2）/)).toBeDefined();
+    expect(screen.queryByText('▶ 遊戲開始')).toBeNull();
+    expect(screen.queryByText('▶ 下一張')).toBeNull();
+    expect(screen.getByText(/✅ 未来/)).toBeDefined();
+
+    fireEvent.click(screen.getByText('🔊 準備完成'));
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && /\/ready$/.test(c.url))).toBe(true));
+
+    rerender(<IntroGame code="ABCDE" room={{ ...roomWith({ ...notStarted, ready: ['p2', 'p1'] }), version: 4 }} players={players} me={host} session={hostSession} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    fireEvent.click(screen.getByText('▶ 遊戲開始'));
     await waitFor(() => expect(calls.some((c) => /\/next$/.test(c.url))).toBe(true));
+    expect(calls.find((c) => /\/next$/.test(c.url))!.body).toEqual({ round: 0 });
     expect(screen.getByText('結束遊戲')).toBeDefined();
     unmount();
+
+    // 非房主：全員到齊也只能等房主
+    const { unmount: unmount2 } = render(<IntroGame code="ABCDE" room={roomWith({ ...notStarted, ready: ['p1', 'p2'] })} players={players} me={guest} session={session} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    expect(screen.queryByText('▶ 遊戲開始')).toBeNull();
+    expect(screen.getByText(/等待房主開始/)).toBeDefined();
+    unmount2();
 
     render(<IntroGame code="ABCDE" room={roomWith({})} players={players} me={null} session={null} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
     expect(screen.getByText(/觀戰模式/)).toBeDefined();
     expect(screen.queryByRole('button', { name: /Song a/ })).toBeNull();
     expect(screen.queryByText('▶ 下一張')).toBeNull();
+    expect(screen.queryByText('▶ 遊戲開始')).toBeNull();
+  });
+
+  test('有人取得後：顯示倒數，時間到房主的瀏覽器自動送 /next 帶 round；卸載就取消', async () => {
+    const calls = mockRoomFetch([
+      { match: /\/api\/apple\/preview/, handle: () => ({ json: preview }) },
+      { method: 'POST', match: /\/next$/, handle: () => ({ json: { state: {}, finished: false } }) },
+    ]);
+    const hostSession = { playerId: 'p1', token: 'htok', name: '房主' };
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    // 剛取得：5 秒倒數，還不會送
+    const { unmount } = render(<IntroGame code="ABCDE" room={roomWith({ resolved: true, resolvedAt: new Date().toISOString(), taken: { a: 'p2' } })} players={players} me={host} session={hostSession} refresh={refresh} toLocalTime={toLocalTime} />);
+    expect(screen.getByText(/[45] 秒後自動出下一張/)).toBeDefined();
+    unmount();
+    expect(calls.some((c) => /\/next$/.test(c.url))).toBe(false);
+
+    // 取得已超過 5 秒（例如剛重新整理）：馬上送
+    render(<IntroGame code="ABCDE" room={roomWith({ resolved: true, resolvedAt: new Date(Date.now() - 6000).toISOString(), taken: { a: 'p2' } })} players={players} me={host} session={hostSession} refresh={refresh} toLocalTime={toLocalTime} />);
+    await waitFor(() => expect(calls.some((c) => /\/next$/.test(c.url))).toBe(true));
+    expect(calls.find((c) => /\/next$/.test(c.url))!.body).toEqual({ round: 1 });
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  test('卸載後排程取消，不會再送 /next', async () => {
+    const calls = mockRoomFetch([
+      { match: /\/api\/apple\/preview/, handle: () => ({ json: preview }) },
+      { method: 'POST', match: /\/next$/, handle: () => ({ json: { state: {}, finished: false } }) },
+    ]);
+    const { unmount } = render(<IntroGame code="ABCDE" room={roomWith({ resolved: true, resolvedAt: new Date(Date.now() - 6000).toISOString(), taken: { a: 'p2' } })} players={players} me={host} session={{ playerId: 'p1', token: 'htok', name: '房主' }} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    unmount();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(calls.some((c) => /\/next$/.test(c.url))).toBe(false);
+  });
+
+  test('非房主晚 2 秒才當備援觸發；伺服器回 NOT_DUE 就 1 秒後重試', async () => {
+    vi.useFakeTimers();
+    let nextCalls = 0;
+    const calls = mockRoomFetch([
+      { match: /\/api\/apple\/preview/, handle: () => ({ json: preview }) },
+      { method: 'POST', match: /\/next$/, handle: () => (++nextCalls === 1 ? { status: 409, json: { error: '還沒到', code: 'NOT_DUE' } } : { json: { state: {}, finished: false } }) },
+    ]);
+    render(<IntroGame code="ABCDE" room={roomWith({ resolved: true, resolvedAt: new Date(Date.now() - 6000).toISOString(), taken: { a: 'p2' } })} players={players} me={guest} session={session} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    expect(calls.filter((c) => /\/next$/.test(c.url)).length).toBe(0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(calls.filter((c) => /\/next$/.test(c.url)).length).toBe(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
+    expect(calls.filter((c) => /\/next$/.test(c.url)).length).toBe(2);
+    vi.useRealTimers();
+  });
+
+  test('沒人答對：開始播放 35 秒後自動換下一張', async () => {
+    const calls = mockRoomFetch([
+      { match: /\/api\/apple\/preview/, handle: () => ({ json: preview }) },
+      { method: 'POST', match: /\/next$/, handle: () => ({ json: { state: {}, finished: false } }) },
+    ]);
+    render(<IntroGame code="ABCDE" room={roomWith({ startsAt: new Date(Date.now() - 36_000).toISOString() })} players={players} me={host} session={{ playerId: 'p1', token: 'htok', name: '房主' }} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    await waitFor(() => expect(calls.some((c) => /\/next$/.test(c.url))).toBe(true));
+    expect(calls.find((c) => /\/next$/.test(c.url))!.body).toEqual({ round: 1 });
   });
 
   test('かるた：沒有 mp3（HEAD 404）→ 抓歌詞 → jsdom 沒有 speechSynthesis → 顯示提示', async () => {

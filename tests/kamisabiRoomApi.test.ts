@@ -345,3 +345,33 @@ describe('GET /api/kamisabi/ping', () => {
     vi.unstubAllEnvs();
   });
 });
+
+vi.mock('@/scripts/karuta-lyrics', () => ({ KARUTA_LYRICS: { 'Song a': 'ラララ\nルルル' } }));
+import { GET as getLyrics } from '@/app/api/kamisabi/room/[code]/lyrics/route';
+
+describe('GET /api/kamisabi/room/[code]/lyrics', () => {
+  test('只在かるた模式、只給當前題；沒歌詞 404', async () => {
+    const host = await openRoom();
+    const guest = await joinAs(host.code, 'guest');
+    const code = host.code;
+    const url = (songId: string) => `/api/kamisabi/room/${code}/lyrics?songId=${songId}`;
+    await startRoom(post(`/api/kamisabi/room/${code}/start`, { mode: 'intro' }, host.token), ctx(code));
+    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    expect((await getLyrics(get(url('a'), guest.token), ctx(code))).status).toBe(403);
+
+    // 換成かるた
+    const room = await fake.getRoomByCode(code);
+    await fake.updateRoom(room!.id, room!.version, { mode: 'karuta' });
+    const s = (await fake.getRoomByCode(code))!.state as IntroState;
+    const other = SONGS.find((x) => x.id !== s.currentSongId)!.id;
+    expect((await getLyrics(get(url(other), guest.token), ctx(code))).status).toBe(403);
+    const res = await getLyrics(get(url(s.currentSongId!), guest.token), ctx(code));
+    if (s.currentSongId === 'a') {
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ text: 'ラララ\nルルル' });
+    } else {
+      expect(res.status).toBe(404);
+    }
+    expect((await getLyrics(get(url(s.currentSongId!)), ctx(code))).status).toBe(401);
+  });
+});

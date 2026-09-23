@@ -1,6 +1,6 @@
 # 研究：「串流試聽 × 實體卡牌」猜歌模式可行性評估
 
-> **狀態：研究 / 提案（尚未實作）** — 最新決定見 §3.5 簡化版設計 v2
+> **狀態：研究 / 提案（草稿已在分支上，尚未定案）** — 單機出題機見 §3.5，線上房間模式（Supabase）見 §10 起
 > 日期：2026-09-23
 > 起因：想新增一個模式：在後台建立播放清單 → 頁面播放 Apple Music 等串流的試聽版 → 現場玩家用 KAMISABI 之類的實體卡牌搶答，**不給選項**。
 > 參考：Lantis「KAMISABIとは」 <https://lantis.jp/topics/news/5907/>
@@ -303,3 +303,183 @@ model QuizItem {
 - Apple Developer Forums：MusicKit previews / previewOnly <https://developer.apple.com/forums/thread/709713>、<https://developer.apple.com/forums/thread/685311>、<https://developer.apple.com/forums/thread/683958>
 - Spotify preview_url 停止提供 <https://community.spotify.com/t5/Spotify-for-Developers/Kind-request-regarding-the-Spotify-Web-API-preview-url/td-p/6909407>、<https://developers.brizm.dev/blog/spotify-api-changes-2026/>
 - Apple Music embed 行為 <https://discussions.apple.com/thread/251052819>
+
+---
+
+# Part B：線上房間模式（Supabase）
+
+## 10. 目前已定案的事項（2026-09-23）
+
+| 項目 | 決定 |
+|---|---|
+| 模式名稱 / 路徑 | **KAMISABI**，單機出題機 `/kamisabi`，線上房間 `/kamisabi/room/[code]` |
+| 主視覺 | 官方海報中央的 KAMISABI 卡片 logo，已去背成透明 webp（放 `public/kamisabi-logo.webp`），放在黑色面板上 |
+| 音源 | Apple Music 30 秒試聽，**固定播整段 30 秒**，不提供秒數選項 |
+| 曲目資料 | 只補歌牌收錄的歌，由站長手動貼 Apple Music 連結到 `scripts/seed-apple-ids.ts` |
+| 主資料庫 | Neon（Prisma），維持不動 |
+| 房間資料庫 | **另建 Supabase 專案**（Tokyo），用 Realtime 推送房間狀態；三個環境變數已填好 |
+| 線上要做的玩法 | ①イントロクイズ×かるた（兩個模式）、③リリースタイムライン |
+| 線上不做的玩法 | ②あなたの○○ベスト5（靠口頭討論）、④フレーズパズル（需歌詞全文） |
+| 語音 | 不做多人語音；かるたモード的歌詞朗讀改用 TTS 預先產檔（見 §14） |
+| 模擬頁 | 單機出題機 <https://claude.ai/artifact/SeVQgsHJqBQVRnpaB2RaTG>；房間模式 <https://claude.ai/artifact/JDgqDqF2nxBDDvixW4DmeX> |
+
+## 11. 官方規則（規則書全文節錄，線上版以此為準）
+
+### ①イントロクイズ×かるた
+- 用意：取り札 50 枚；イントロモード另需音樂播放器。人數 3 人以上（イントロモードは 2 人以上）。
+- **かるたモード**：1. 読み手 1 人と取り手 2 人以上に分かれる。2. 50 枚を表向きで並べる。3. 読み手が歌詞を読み、取り手は該当する楽曲の札を取る。4. 50 枚すべて取り終わったらポイント集計、最多が勝利。
+- ＊アルバムカード 1 枚 1 ポイント、シングルカード 2 ポイント。＊**お手つき：自分が取った札から 1 枚選んで捨てる**（そのカードのポイントは得られない）。
+- **イントロモード**：取り札と同じ楽曲のプレイリストを用意し、読み手が歌詞を読むかわりにシャッフル再生。読み手なしでも可（取り手の 1 人が画面を見ずに操作）。
+
+### ③リリースタイムライン（2〜8 人）
+1. 山札をシャッフルし、各 5 枚を手札に。**プレイ中は手札の裏面（リリース日）を見てはいけない**。
+2. 山札の 1 番上を裏向きで「初期札」として置く（＝初期札の日付は見える）。
+3. スタートプレイヤーを決める。
+4. 手札から 1 枚を選び、初期札より古いと思ったら左、新しいと思ったら右に表向きで置く。
+5. 裏返して確認。合っていればそのまま。**間違っていたら手札に戻し、ペナルティとして山札から 1 枚引く**（山札 0 なら引かない）。
+6. 時計回りで次へ。以後は右・左・中間に置ける。
+7. **最初に手札のなくなったプレイヤーが勝利**。
+
+（②ベスト 5、④フレーズパズルは線上化しないため省略。）
+
+## 12. 架構
+
+```
+瀏覽器 ──(1) POST /api/kamisabi/room/...──▶ Next.js API route (Vercel)
+   ▲                                        │ 驗證規則、寫入
+   │ (3) Realtime postgres_changes           ▼
+   └────────────────────────────── Supabase Postgres (rooms / room_players / room_secrets)
+                                            ▲
+              Neon (Song.appleTrackId, releaseDate) ──(0) 開房時快照 50 首──┘
+```
+
+- **(0)** 開房時從 Neon 讀該品牌所有 `appleTrackId` 非空的歌（曲名、封面用的 trackId、`releaseDate`、是否 2 分），寫進 `rooms.songs` JSON。之後整場遊戲不再碰 Neon，兩個資料庫不需互查。
+- **(1)** 所有會改變狀態的動作（開房、加入、開始、出下一張、點牌、放牌）都走 API route，用 **service role key** 寫 Supabase，並在伺服器端驗證規則。
+- **(3)** 瀏覽器用 **publishable / anon key** 只做「讀 + 訂閱」。`rooms` 一列更新，房內所有人幾百毫秒內收到。
+- 試聽音檔仍由各瀏覽器直接向 Apple CDN 串流；伺服器只發「開始時間」。
+
+## 13. Supabase 資料表與權限
+
+```sql
+create table rooms (
+  id          uuid primary key default gen_random_uuid(),
+  code        text unique not null,              -- 5 碼房間代碼
+  mode        text not null,                     -- intro | karuta | timeline
+  status      text not null default 'lobby',     -- lobby | playing | finished
+  brand       text not null,                     -- music_ml | music_sidem | music_shiny
+  songs       jsonb not null,                    -- 開房快照：[{id,title,trackId,releaseDate,points}]
+  state       jsonb not null default '{}',       -- 公開狀態（見下）
+  version     int  not null default 0,           -- 樂觀鎖
+  updated_at  timestamptz default now()
+);
+
+create table room_players (
+  id        uuid primary key default gen_random_uuid(),
+  room_id   uuid references rooms(id) on delete cascade,
+  name      text not null,
+  seat      int  not null,
+  is_host   boolean not null default false,
+  joined_at timestamptz default now(),
+  unique (room_id, seat)
+);
+
+-- 只有 service role 能讀：玩家 token、房主 token、時間軸模式的手牌
+create table room_secrets (
+  room_id    uuid references rooms(id) on delete cascade,
+  player_id  uuid references room_players(id) on delete cascade,
+  token      text not null,
+  hand       jsonb not null default '[]',
+  primary key (room_id, player_id)
+);
+
+alter table rooms         enable row level security;
+alter table room_players  enable row level security;
+alter table room_secrets  enable row level security;
+create policy "anon read rooms"   on rooms        for select using (true);
+create policy "anon read players" on room_players for select using (true);
+-- room_secrets 不開任何 policy；anon 完全讀不到
+-- 不開任何 insert/update/delete 給 anon，寫入一律經過 API route
+
+alter publication supabase_realtime add table rooms, room_players;
+```
+
+`rooms.state` 內容（公開，所有人可讀）：
+
+| 模式 | 欄位 |
+|---|---|
+| intro / karuta | `round`（第幾張）、`currentSongId`（開始前為 null；かるた也不放歌詞）、`startsAt`（ISO 時間）、`taken: {songId: playerId}`、`scores: {playerId: points}`、`lastResult` |
+| timeline | `turnSeat`、`deckCount`、`line: [songId...]`（已翻開，含日期）、`handCounts: {playerId: n}`、`lastResult` |
+
+手牌內容（曲目 id）只在 `room_secrets.hand`，API 只回給該玩家本人。
+
+**專案設定**：Enable Data API ✔、Automatically expose new tables ✔、Enable automatic RLS ✔（與上面 SQL 相容）。
+
+**環境變數**（本機 `.env` 與 Vercel）：
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co     # 不含 /rest/v1/
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...                # 瀏覽器：讀 + 訂閱
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API route 使用，不加 NEXT_PUBLIC_
+```
+
+## 14. 玩法對應的伺服器邏輯
+
+### 玩家身分
+- 不需註冊。加入時 API 產生 `token` 存 `room_secrets`，回給瀏覽器存 `localStorage`；之後每個動作都帶 token。房主是第一位加入者。
+
+### イントロ / かるた（共用一套搶牌邏輯）
+1. 房主按「下一張」→ API 隨機挑一張未被取走的卡，寫 `currentSongId`、`startsAt = now + 3s`。
+2. 各瀏覽器收到後預載試聽（イントロ）或朗讀檔（かるた），到 `startsAt` 同時播放。播放前需玩家點過一次「準備完成」以解除 iOS 自動播放限制。
+3. 玩家點卡 → `POST /claim {songId}`。伺服器：
+   - 若 `songId === currentSongId` 且尚未有人取得 → `update rooms set state=..., version=version+1 where id=? and version=?`；**第一個成功的 UPDATE 即得卡**（樂觀鎖保證同回合只有一人）。
+   - 若點錯 → **お手つき**：依規則從該玩家已取得的牌中丟一張。實作：API 回 `{otetsuki: true, cards: [...]}`，前端跳選單讓玩家自選；沒有牌則無事。被丟的卡 `taken` 移除、回到場上。
+4. 30 秒內無人取得 → 該卡留在場上，稍後重出。
+5. 全部取完 → 計分（アルバム 1 分；房主可在開房時標記哪些曲是シングル 2 分）→ `status = finished`。
+
+### リリースタイムライン
+1. 開始：洗牌，每人 5 張寫入 `room_secrets.hand`，山札頂一張為初期札寫入 `line`，`deckCount` 更新。
+2. 輪到的人 `POST /place {songId, slot}`。伺服器驗證：`line[slot-1].date <= song.date <= line[slot].date`（同日視為皆可）。
+   - 正確：從手牌移除、插入 `line`（前端翻出日期）。
+   - 錯誤：卡留在手牌，**山札 > 0 時罰抽一張**進手牌；前端顯示該卡日期作為提示（規則書上「翻面確認」本來就會看到）。
+3. 順位輪到下一位；某人手牌歸零 → 勝利、`status = finished`。
+
+### かるたモード的朗讀（TTS，不做語音聊天）
+- 每套 50 首的副歌歌詞由站長照卡片輸入（不顯示在畫面上），用免費層 TTS **一次產出 50 個 mp3** 放 Supabase Storage（私有 bucket，用簽名網址）或 `public/` 不可猜路徑。
+- 候選服務：Azure Speech（免費 50 萬字/月，日文自然）、Google Cloud TTS（免費 100 萬字/月）、VOICEVOX（開源、動畫風，需標示）。50 首約 2,000 字元，任何免費層都夠。
+- 備援：沒有產檔的歌退回瀏覽器 Web Speech API（`speechSynthesis`，日文語音由裝置提供）。
+- 著作權提醒：歌詞文字與朗讀檔都是歌詞重製。只存卡片上的副歌片段、不顯示文字、音檔不公開列出，把曝光壓到最低。
+
+## 15. API 一覽
+
+| Method | Path | 說明 |
+|---|---|---|
+| POST | `/api/kamisabi/room` | 開房：`{name, brand}` → 快照 Neon 曲目、建 rooms / room_players / room_secrets，回 `{code, playerId, token}` |
+| POST | `/api/kamisabi/room/[code]/join` | 加入：`{name}` → 回 `{playerId, token}` |
+| POST | `/api/kamisabi/room/[code]/start` | 房主：`{mode}` → 依模式初始化 state |
+| POST | `/api/kamisabi/room/[code]/next` | 房主：出下一張（intro / karuta） |
+| POST | `/api/kamisabi/room/[code]/claim` | 玩家：`{songId}` 搶牌；回正確 / お手つき |
+| POST | `/api/kamisabi/room/[code]/discard` | 玩家：お手つき後選擇丟哪張 |
+| POST | `/api/kamisabi/room/[code]/place` | 玩家：`{songId, slot}` 放進時間軸 |
+| GET | `/api/kamisabi/room/[code]/hand` | 玩家：取自己的手牌（需 token） |
+| GET | `/api/apple/preview?trackId=` | 既有：試聽網址（單機與房間共用） |
+
+所有 POST 都帶 `Authorization: Bearer <token>`，伺服器以 `room_secrets` 驗證身分與房主權限。
+
+## 16. 維運
+
+- **免費方案閒置 7 天會暫停專案**：加 Vercel Cron 每 3 天打一次 `/api/kamisabi/ping`（對 Supabase 做 `select 1`），或開房失敗時提示「資料庫喚醒中，請一分鐘後再試」。
+- Realtime 免費額度：200 同時連線、每月 200 萬則訊息；一場 8 人遊戲用不到 1%。
+- 房間 24 小時後由 Cron 清除（`delete from rooms where updated_at < now() - interval '1 day'`）。
+
+## 17. 工時（線上房間模式）
+
+| 項目 | 估計 |
+|---|---|
+| Supabase client、資料表、環境變數、ping cron | 0.5 天 |
+| 開房 / 加入 / 大廳 / Realtime 訂閱 | 1 天 |
+| イントロ / かるた搶牌（含お手つき、同步播放、計分） | 1.5 天 |
+| リリースタイムライン | 1.5 天 |
+| かるた TTS 產檔腳本 + Web Speech 備援 | 0.5 天 |
+| 測試、手機版面、收尾 | 1 天 |
+
+合計約 **6 個工作天**，建議在單機出題機（§3.5，約 2 天）上線後進行。

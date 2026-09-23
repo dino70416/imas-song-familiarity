@@ -320,7 +320,8 @@ model QuizItem {
 | 房間資料庫 | **另建 Supabase 專案**（Tokyo），用 Realtime 推送房間狀態；三個環境變數已填好 |
 | 線上要做的玩法 | ①イントロクイズ×かるた（兩個模式）、③リリースタイムライン |
 | 線上不做的玩法 | ②あなたの○○ベスト5（靠口頭討論）、④フレーズパズル（需歌詞全文） |
-| 語音 | 不做多人語音；かるたモード的歌詞朗讀改用 TTS 預先產檔（見 §14） |
+| 語音 | 不做多人語音；かるたモード的歌詞朗讀用 **Google Cloud TTS** 預先產檔（見 §14） |
+| 虛擬歌牌外觀 | 仿實體卡：淡彩全像底、專輯封面、曲名、品牌名、分隔線、⏮ ▶ ⏭ 純裝飾圖示（見 §14.5） |
 | 模擬頁 | 單機出題機 <https://claude.ai/artifact/SeVQgsHJqBQVRnpaB2RaTG>；房間模式 <https://claude.ai/artifact/JDgqDqF2nxBDDvixW4DmeX> |
 
 ## 11. 官方規則（規則書全文節錄，線上版以此為準）
@@ -445,9 +446,21 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API ro
 
 ### かるたモード的朗讀（TTS，不做語音聊天）
 - 每套 50 首的副歌歌詞由站長照卡片輸入（不顯示在畫面上），用免費層 TTS **一次產出 50 個 mp3** 放 Supabase Storage（私有 bucket，用簽名網址）或 `public/` 不可猜路徑。
-- 候選服務：Azure Speech（免費 50 萬字/月，日文自然）、Google Cloud TTS（免費 100 萬字/月）、VOICEVOX（開源、動畫風，需標示）。50 首約 2,000 字元，任何免費層都夠。
+- **採用 Google Cloud TTS**：語音用 `ja-JP-Neural2-B`（女聲）或 `ja-JP-Neural2-C`（男聲），Neural2 每月免費 100 萬字元，50 首約 2,000 字元，用不到 1%。
+  - 產檔腳本 `scripts/gen-karuta-tts.ts`：讀 `scripts/karuta-lyrics.ts` 的對照表 `{ "曲名": "副歌歌詞…" }`，呼叫 `texttospeech.googleapis.com/v1/text:synthesize`（`audioEncoding: MP3`，`speakingRate: 0.95`），輸出 `kamisabi/tts/<songId>.mp3`。
+  - 需要 GCP 專案啟用 Cloud Text-to-Speech API，並建立服務帳戶金鑰放 `GOOGLE_APPLICATION_CREDENTIALS`（只在本機跑腳本，不放 Vercel）。
+  - 歌詞用 SSML 的 `<break time="600ms"/>` 分行，讓朗讀有かるた的節奏。
 - 備援：沒有產檔的歌退回瀏覽器 Web Speech API（`speechSynthesis`，日文語音由裝置提供）。
 - 著作權提醒：歌詞文字與朗讀檔都是歌詞重製。只存卡片上的副歌片段、不顯示文字、音檔不公開列出，把曝光壓到最低。
+
+### 14.5 虛擬歌牌外觀（仿實體卡）
+
+實體卡正面：淡彩全像（粉、藍、紫、薄荷）底、圓角；上方正方形專輯封面；曲名（粗體）；品牌名（小字，例：アイドルマスター ミリオンライブ！）；一條細分隔線；底部 ⏮ ▶ ⏭ 三個黑色圖示。線上版照此做成一個 `<KamisabiCard>` 元件：
+
+- 比例 63:88，封面用 Apple `artworkUrl`（600×600），圖示為純 SVG 裝飾、不可點。
+- 品牌名依 `Song.brand` 對照：ML → アイドルマスター ミリオンライブ！、SideM → アイドルマスター SideM、SC → アイドルマスター シャイニーカラーズ。
+- 狀態樣式：被取走 → 灰化並蓋上取得者名牌；點錯 → 紅框抖動；得卡 → 綠框；シングル 2 分 → 右上角 ★2pt 標籤；時間軸上翻開後在卡下方顯示發行日標籤。
+- 單機出題機的「公佈答案」也改用同一元件顯示。
 
 ## 15. API 一覽
 

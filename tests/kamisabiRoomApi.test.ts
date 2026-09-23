@@ -129,3 +129,128 @@ describe('POST /api/kamisabi/room/[code]/join', () => {
     expect(bad.status).toBe(400);
   });
 });
+
+import { POST as startRoom } from '@/app/api/kamisabi/room/[code]/start/route';
+import { POST as nextCard } from '@/app/api/kamisabi/room/[code]/next/route';
+import { POST as claimCard } from '@/app/api/kamisabi/room/[code]/claim/route';
+import { POST as discardCard } from '@/app/api/kamisabi/room/[code]/discard/route';
+import { POST as endRoom } from '@/app/api/kamisabi/room/[code]/end/route';
+import type { IntroState } from '@/lib/kamisabiRoom/types';
+
+async function introGame() {
+  const host = await openRoom();
+  const guest = await joinAs(host.code, 'guest');
+  const res = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, host.token), ctx(host.code));
+  expect(res.status).toBe(200);
+  return { host, guest, code: host.code };
+}
+async function state(code: string) {
+  return (await fake.getRoomByCode(code))!.state as IntroState;
+}
+
+describe('start / next / claim / discard / end', () => {
+  test('start：非房主 403；人數不足 400；成功後 status=playing、mode 寫入、state 初始化', async () => {
+    const host = await openRoom();
+    const alone = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, host.token), ctx(host.code));
+    expect((await alone.json()).code).toBe('NOT_ENOUGH_PLAYERS');
+    const guest = await joinAs(host.code, 'guest');
+    const forbidden = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, guest.token), ctx(host.code));
+    expect(forbidden.status).toBe(403);
+    const badMode = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'best5' }, host.token), ctx(host.code));
+    expect(badMode.status).toBe(400);
+    const ok = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'karuta' }, host.token), ctx(host.code));
+    expect(ok.status).toBe(200);
+    const room = await fake.getRoomByCode(host.code);
+    expect(room).toMatchObject({ status: 'playing', mode: 'karuta', version: 1 });
+    expect((room!.state as IntroState).kind).toBe('intro');
+    const again = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, host.token), ctx(host.code));
+    expect((await again.json()).code).toBe('ROOM_STARTED');
+  });
+
+  test('next → claim 正確 → next → 全部取完自動 finished', async () => {
+    const { host, guest, code } = await introGame();
+    const n1 = await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    expect(n1.status).toBe(200);
+    let s = await state(code);
+    expect(s.round).toBe(1);
+    expect(s.currentSongId).not.toBeNull();
+    expect(Date.parse(s.startsAt!)).toBeGreaterThan(Date.now());
+
+    // 非房主不能出題
+    expect((await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, guest.token), ctx(code))).status).toBe(403);
+
+    const c1 = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, guest.token), ctx(code));
+    expect(c1.status).toBe(200);
+    expect(await c1.json()).toMatchObject({ result: 'correct', finished: false });
+    s = await state(code);
+    expect(s.taken[s.currentSongId!]).toBe(guest.playerId);
+    expect(s.resolved).toBe(true);
+
+    // 慢了一步
+    const late = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, host.token), ctx(code));
+    expect(late.status).toBe(409);
+    expect((await late.json()).code).toBe('ROUND_RESOLVED');
+
+    // 把剩下兩張都拿掉 → finished
+    for (let i = 0; i < 2; i++) {
+      await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+      s = await state(code);
+      const res = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, host.token), ctx(code));
+      expect(res.status).toBe(200);
+    }
+    expect((await fake.getRoomByCode(code))!.status).toBe('finished');
+    s = await state(code);
+    expect(s.scores[host.playerId]).toBeGreaterThan(0);
+  });
+
+  test('お手つき：有牌的人收到可丟的牌，丟完才能再搶', async () => {
+    const { host, guest, code } = await introGame();
+    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    let s = await state(code);
+    await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, guest.token), ctx(code));
+    const firstCard = s.currentSongId!;
+
+    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    s = await state(code);
+    const wrong = SONGS.find((x) => x.id !== s.currentSongId && x.id !== firstCard)!.id;
+    const o = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: wrong }, guest.token), ctx(code));
+    expect(o.status).toBe(200);
+    const body = await o.json();
+    expect(body.result).toBe('otetsuki');
+    expect(body.cards.map((c: RoomSong) => c.id)).toEqual([firstCard]);
+
+    const blocked = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, guest.token), ctx(code));
+    expect((await blocked.json()).code).toBe('DISCARD_PENDING');
+
+    const notMine = await discardCard(post(`/api/kamisabi/room/${code}/discard`, { songId: wrong }, guest.token), ctx(code));
+    expect(notMine.status).toBe(400);
+    const d = await discardCard(post(`/api/kamisabi/room/${code}/discard`, { songId: firstCard }, guest.token), ctx(code));
+    expect(d.status).toBe(200);
+    s = await state(code);
+    expect(s.taken[firstCard]).toBeUndefined();
+    expect(s.pendingDiscards).toEqual({});
+
+    const ok = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s.currentSongId }, guest.token), ctx(code));
+    expect(ok.status).toBe(200);
+  });
+
+  test('沒牌的人點錯 → otetsuki_no_cards，不用丟牌', async () => {
+    const { host, guest, code } = await introGame();
+    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    const s = await state(code);
+    const wrong = SONGS.find((x) => x.id !== s.currentSongId)!.id;
+    const o = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: wrong }, guest.token), ctx(code));
+    expect(await o.json()).toMatchObject({ result: 'otetsuki_no_cards', cards: [] });
+  });
+
+  test('claim 在 lobby / 時間軸模式 → 409；end 只有房主', async () => {
+    const host = await openRoom();
+    const guest = await joinAs(host.code, 'guest');
+    const lobby = await claimCard(post(`/api/kamisabi/room/${host.code}/claim`, { songId: 'a' }, guest.token), ctx(host.code));
+    expect(lobby.status).toBe(409);
+    expect((await endRoom(post(`/api/kamisabi/room/${host.code}/end`, {}, guest.token), ctx(host.code))).status).toBe(403);
+    const ended = await endRoom(post(`/api/kamisabi/room/${host.code}/end`, {}, host.token), ctx(host.code));
+    expect(ended.status).toBe(200);
+    expect((await fake.getRoomByCode(host.code))!.status).toBe('finished');
+  });
+});

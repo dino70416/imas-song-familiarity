@@ -4,7 +4,7 @@ import { parseAppleTrackId } from '../lib/apple';
 const prisma = new PrismaClient();
 
 /**
- * 歌曲 Apple Music 曲目 ID 對照表（副歌猜歌出題機用）
+ * 歌曲 Apple Music 曲目 ID 對照表（KAMISABI 出題機用）
  *
  * 只補「歌牌（KAMISABI 等）有收錄」的歌。格式同 seed-youtube-ids.ts：
  *   key   = 曲名（與 DB 的 Song.title 完全相同）

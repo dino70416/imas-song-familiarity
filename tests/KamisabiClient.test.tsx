@@ -1,7 +1,7 @@
 import { expect, test, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import IntroQuizClient from '../components/intro-quiz/IntroQuizClient';
+import KamisabiClient from '../components/kamisabi/KamisabiClient';
 
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: null, status: 'unauthenticated' }),
@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
 
   global.fetch = vi.fn().mockImplementation((input: string) => {
-    if (input === '/api/songs/intro-quiz') {
+    if (input === '/api/songs/kamisabi') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(mockSongs) });
     }
     const m = input.match(/trackId=(\d+)/);
@@ -36,12 +36,14 @@ beforeEach(() => {
   });
 });
 
-test('出題機流程：設定 → 播放（不露歌名）→ 公佈答案 → 下一題 → 出題完畢', async () => {
-  render(<IntroQuizClient />);
+test('KAMISABI 出題機流程：設定 → 播放（不露歌名）→ 公佈答案 → 下一題 → 出題完畢', async () => {
+  render(<KamisabiClient />);
 
   await waitFor(() => expect(screen.getByText('開始出題')).toBeDefined());
   expect(screen.getByText(/共有 2 首歌曲可出題/)).toBeDefined();
 
+  // 關掉隨機順序，讓題目依題庫順序（Song A → Song B）出現
+  fireEvent.click(screen.getByLabelText('隨機出題順序'));
   fireEvent.click(screen.getByText('開始出題'));
 
   // 試聽載入完成 → 出現播放器，但畫面上不能出現任何曲名
@@ -55,7 +57,7 @@ test('出題機流程：設定 → 播放（不露歌名）→ 公佈答案 → 
 
   fireEvent.click(screen.getByText('👀 公佈答案'));
   await waitFor(() => expect(screen.getByTestId('answer-card')).toBeDefined());
-  expect(screen.getByText('Song A')).toBeDefined();
+  expect(screen.getAllByText('Song A').length).toBeGreaterThan(0);
   expect(screen.getByText('春日未来')).toBeDefined();
   expect(screen.getByText(/在 Apple Music 聆聽/)).toBeDefined();
 
@@ -64,21 +66,23 @@ test('出題機流程：設定 → 播放（不露歌名）→ 公佈答案 → 
   expect(screen.queryByText('Song B')).toBeNull();
 
   fireEvent.click(screen.getByText('👀 公佈答案'));
-  await waitFor(() => expect(screen.getByText('Song B')).toBeDefined());
+  await waitFor(() => expect(screen.getAllByText('Song B').length).toBeGreaterThan(0));
 
-  fireEvent.click(screen.getByText('結束出題'));
+  // 最後一題的「下一題」按鈕會變成「結束出題」（上方狀態列也有同名按鈕，取最後一個）
+  const endButtons = screen.getAllByText('結束出題');
+  fireEvent.click(endButtons[endButtons.length - 1]);
   await waitFor(() => expect(screen.getByText('出題完畢！')).toBeDefined());
 });
 
 test('試聽取不到時可以跳到下一題', async () => {
   (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: string) => {
-    if (input === '/api/songs/intro-quiz') {
+    if (input === '/api/songs/kamisabi') {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([mockSongs[0]]) });
     }
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ error: 'nf' }) });
   });
 
-  render(<IntroQuizClient />);
+  render(<KamisabiClient />);
   await waitFor(() => expect(screen.getByText('開始出題')).toBeDefined());
   fireEvent.click(screen.getByText('開始出題'));
 

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 export const revalidate = 3600; // 快取一小時（同 /api/songs/guess）
 
 /**
- * 副歌猜歌出題機的題庫：只回傳有 Apple Music 曲目 ID 的歌
+ * KAMISABI 出題機的題庫：只回傳有 Apple Music 曲目 ID 的歌
  * （歌牌有收錄的歌才會由站長用 scripts/seed-apple-ids.ts 補上 ID）。
  */
 export async function GET() {
@@ -37,7 +37,7 @@ export async function GET() {
     return NextResponse.json(formatted);
   } catch (error: unknown) {
     return NextResponse.json(
-      { error: '載入出題機題庫失敗', details: error instanceof Error ? error.message : String(error) },
+      { error: '載入KAMISABI 出題機題庫失敗', details: error instanceof Error ? error.message : String(error) },
       { status: 500 },
     );
   }

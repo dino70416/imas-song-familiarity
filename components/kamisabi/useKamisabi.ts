@@ -2,25 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { shuffle } from '@/lib/shuffle';
-import type { ApplePreview, ClipLength, IntroQuizPhase, IntroQuizSong, PreviewStatus } from './types';
+import type { ApplePreview, KamisabiPhase, KamisabiSong, PreviewStatus } from './types';
 
 /**
- * 副歌猜歌出題機的狀態：
- * 設定（品牌 / 秒數 / 順序）→ 依序出題（播試聽 → 公佈答案 → 下一題）→ 出完。
+ * KAMISABI 出題機的狀態：
+ * 設定（品牌 / 順序）→ 依序出題（播 30 秒試聽 → 公佈答案 → 下一題）→ 出完。
  * 網頁只負責「放歌 + 翻答案」，搶答與計分在桌上用歌牌進行。
  */
-export function useIntroQuiz() {
-  const [phase, setPhase] = useState<IntroQuizPhase>('loading');
+export function useKamisabi() {
+  const [phase, setPhase] = useState<KamisabiPhase>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [allSongs, setAllSongs] = useState<IntroQuizSong[]>([]);
+  const [allSongs, setAllSongs] = useState<KamisabiSong[]>([]);
 
   // 設定
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
-  const [clipLength, setClipLength] = useState<ClipLength>(10);
   const [shuffleOrder, setShuffleOrder] = useState(true);
 
   // 進行中
-  const [queue, setQueue] = useState<IntroQuizSong[]>([]);
+  const [queue, setQueue] = useState<KamisabiSong[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [preview, setPreview] = useState<ApplePreview | null>(null);
@@ -32,12 +31,12 @@ export function useIntroQuiz() {
   const loadSeqRef = useRef(0);
 
   useEffect(() => {
-    fetch('/api/songs/intro-quiz')
+    fetch('/api/songs/kamisabi')
       .then((res) => {
         if (!res.ok) throw new Error('Failed to fetch songs');
         return res.json();
       })
-      .then((data: IntroQuizSong[]) => {
+      .then((data: KamisabiSong[]) => {
         setAllSongs(data);
         setPhase('setup');
       })
@@ -64,7 +63,7 @@ export function useIntroQuiz() {
   }, []);
 
   const loadQuestion = useCallback(
-    (list: IntroQuizSong[], i: number) => {
+    (list: KamisabiSong[], i: number) => {
       const song = list[i];
       if (!song) return;
       const seq = ++loadSeqRef.current;
@@ -136,8 +135,6 @@ export function useIntroQuiz() {
     allSongs,
     selectedBrands,
     setSelectedBrands,
-    clipLength,
-    setClipLength,
     shuffleOrder,
     setShuffleOrder,
     matchingSongsCount: matchingSongs.length,

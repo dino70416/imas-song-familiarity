@@ -1,6 +1,6 @@
 # 研究：「串流試聽 × 實體卡牌」猜歌模式可行性評估
 
-> **狀態：研究 / 提案（草稿已在分支上，尚未定案）** — 單機出題機見 §3.5，線上房間模式（Supabase）見 §10 起
+> **狀態：計畫已確認。單機出題機 `/kamisabi` 已實作於本分支（§18）；線上房間模式（Supabase）待做，見 §10 起**
 > 日期：2026-09-23
 > 起因：想新增一個模式：在後台建立播放清單 → 頁面播放 Apple Music 等串流的試聽版 → 現場玩家用 KAMISABI 之類的實體卡牌搶答，**不給選項**。
 > 參考：Lantis「KAMISABIとは」 <https://lantis.jp/topics/news/5907/>
@@ -132,14 +132,14 @@ model Song {
 ### 播放清單：MVP 不需要新資料表
 
 既然連結掛在 `Song` 上，「清單」就只是一組 `songId`：
-- **MVP**：主持人頁 `/intro-quiz` 沿用現有品牌 / 偶像 / 組合 / 熟悉度篩選器選歌（只列 `appleTrackId` 非空者），按「開始」即可；順序亂數或依原順序。
+- **MVP**：主持人頁 `/kamisabi` 沿用現有品牌 / 偶像 / 組合 / 熟悉度篩選器選歌（只列 `appleTrackId` 非空者），按「開始」即可；順序亂數或依原順序。
 - **v2（若要存清單）**：再加第 4 節的 `QuizSet`，但 `QuizItem` 只剩 `songId` + `order`（Apple 資料都在 `Song`）。
 
 ### 播放流程
 
 1. 主持人頁載入題目清單（只有 `songId`，**不含曲名**）。
 2. 每題：`GET /api/apple/preview?trackId=` → server 打 `itunes.apple.com/lookup`（`revalidate` 6 小時）→ 回 `previewUrl` + 封面 + `trackViewUrl`。
-3. `<audio>` 播放，UI 只顯示進度條；主持人可設「一次播 5 / 10 / 30 秒」、重播。
+3. `<audio>` 播放，UI 只顯示進度條；固定播整段 30 秒，可停止 / 繼續 / 重播（定案：不提供秒數選項）。
 4. 公佈答案：翻牌顯示曲名 / 演唱者 / 品牌 / 封面 + 「在 Apple Music 聆聽」+ courtesy 字樣；可直接開既有 `SongDetailModal`。
 5. 下一題。
 
@@ -496,3 +496,29 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API ro
 | 測試、手機版面、收尾 | 1 天 |
 
 合計約 **6 個工作天**，建議在單機出題機（§3.5，約 2 天）上線後進行。
+
+---
+
+## 18. 單機出題機實作紀錄（已完成）
+
+| 檔案 | 說明 |
+|---|---|
+| `prisma/schema.prisma`、`prisma/migrations/20260923000000_add_apple_track_id/` | `Song.appleTrackId String?`（null = 未處理，'' = 確認沒有） |
+| `scripts/seed-apple-ids.ts`（`npm run seed:apple-ids`） | 手動對照表：key 為曲名或 slug，value 貼 Apple Music 連結、純數字 ID 或 `''` |
+| `lib/apple.ts` | `parseAppleTrackId`（抓 `?i=`）、`buildItunesLookupUrl`、`pickApplePreview`（封面放大到 600×600） |
+| `lib/kamisabi.ts` | 品牌 → 實體卡上的官方日文全名 |
+| `app/api/apple/preview/route.ts` | `GET ?trackId=`：iTunes lookup，Next fetch cache 6 小時，每 IP 60 次 / 10 秒補 6 次 |
+| `app/api/songs/kamisabi/route.ts` | 題庫：`appleTrackId` 非空的歌（快取 1 小時） |
+| `app/kamisabi/page.tsx` | 頁面，沿用 `GuessWrapper` |
+| `components/kamisabi/KamisabiClient.tsx` | 設定（品牌、隨機）→ 出題 → 公佈答案 → 下一題 → 出題完畢 |
+| `components/kamisabi/useKamisabi.ts` | 狀態；預先載入下一題試聽；試聽失敗可重試 / 跳題 |
+| `components/kamisabi/PreviewPlayer.tsx` | 遮住歌名的 30 秒播放器：播放 / 停止 / 繼續 / 重播 |
+| `components/kamisabi/KamisabiCard.tsx` + `globals.css .kamisabi-card` | 仿實體歌牌元件（房間模式可直接重用） |
+| `public/kamisabi-logo.webp` | 去背後的官方 logo |
+| `components/Header.tsx` | 入口「🎤 KAMISABI」 |
+| `tests/apple.unit.test.ts`、`tests/KamisabiClient.test.tsx` | 單元與 UI 測試 |
+
+上線步驟：
+1. 部署後 `prisma migrate deploy` 會套用新欄位（build script 已含）。
+2. 在 `scripts/seed-apple-ids.ts` 填歌牌收錄曲的 Apple Music 連結，`npm run seed:apple-ids`。
+3. 開 `/kamisabi`，選品牌、開始出題。

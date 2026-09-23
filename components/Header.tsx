@@ -56,14 +56,14 @@ export default function Header() {
           }}>
             🎵 猜歌遊戲
           </a>
-          <a href="/intro-quiz" className="btn" style={{ 
+          <a href="/kamisabi" className="btn" style={{ 
             padding: '6px 12px', 
             fontSize: '12px', 
             backgroundColor: '#db2777', 
             color: 'white', 
             fontWeight: 'bold' 
           }}>
-            🎤 出題機
+            🎤 KAMISABI
           </a>
           
           {status === 'authenticated' && session?.user ? (

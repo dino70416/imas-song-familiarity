@@ -74,6 +74,27 @@ describe('RoomClient', () => {
     expect(calls.find((c) => /\/start$/.test(c.url))!.body).toEqual({ mode: 'karuta' });
   });
 
+  test('進房後暫時性的連線錯誤：畫面留在原地、顯示連線提示，不換成整頁錯誤', async () => {
+    const { doc } = makeDoc();
+    localStorage.setItem('kamisabi:room:ABCDE', JSON.stringify({ playerId: 'p1', token: 'tok1', name: '房主' }));
+    render(<RoomClient code="ABCDE" />);
+    await screen.findByText('ABCDE');
+
+    // 之後的 GET 全部失敗（模擬手機網路閃斷）
+    const original = global.fetch;
+    global.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch'); }) as unknown as typeof fetch;
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitFor(() => expect(screen.getByText(/無法連線到房間/)).toBeDefined());
+    expect(screen.getByText('ABCDE')).toBeDefined();          // 大廳還在
+    expect(screen.queryByText(/回到 KAMISABI/)).toBeNull();    // 沒有變成整頁錯誤
+
+    // 網路恢復 → 提示消失
+    global.fetch = original;
+    doc.players = [host];
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitFor(() => expect(screen.queryByText(/無法連線到房間/)).toBeNull());
+  });
+
   test('遊戲已開始且沒有 session → 觀戰模式，不會白屏', async () => {
     const { doc } = makeDoc();
     doc.room = { ...doc.room, mode: 'intro', status: 'playing', state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };

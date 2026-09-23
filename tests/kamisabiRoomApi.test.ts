@@ -234,6 +234,39 @@ describe('start / next / claim / discard / end', () => {
     expect(ok.status).toBe(200);
   });
 
+  test('claim 撞上房主的 next（寫入前被搶先換題）→ 409 ROUND_RESOLVED，不算お手つき', async () => {
+    const { host, guest, code } = await introGame();
+    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    const s1 = await state(code);
+    // guest 點的是第 1 回合的正確牌，但在 guest 寫入前房主先出了第 2 張
+    fake._setBeforeUpdate(async () => {
+      await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    });
+    const res = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s1.currentSongId, round: s1.round }, guest.token), ctx(code));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('ROUND_RESOLVED');
+    const s2 = await state(code);
+    expect(s2.round).toBe(2);
+    expect(s2.pendingDiscards).toEqual({});
+    expect(s2.lastResult).toBeNull();
+  });
+
+  test('兩人同時點對牌：後寫入的人重試後拿到 409 ROUND_RESOLVED，不是 500 也不是お手つき', async () => {
+    const { host, guest, code } = await introGame();
+    await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
+    const s1 = await state(code);
+    fake._setBeforeUpdate(async () => {
+      const first = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s1.currentSongId, round: s1.round }, host.token), ctx(code));
+      expect(first.status).toBe(200);
+    });
+    const second = await claimCard(post(`/api/kamisabi/room/${code}/claim`, { songId: s1.currentSongId, round: s1.round }, guest.token), ctx(code));
+    expect(second.status).toBe(409);
+    expect((await second.json()).code).toBe('ROUND_RESOLVED');
+    const s2 = await state(code);
+    expect(s2.taken[s1.currentSongId!]).toBe(host.playerId);
+    expect(s2.pendingDiscards).toEqual({});
+  });
+
   test('沒牌的人點錯 → otetsuki_no_cards，不用丟牌', async () => {
     const { host, guest, code } = await introGame();
     await nextCard(post(`/api/kamisabi/room/${code}/next`, {}, host.token), ctx(code));
@@ -322,6 +355,10 @@ describe('timeline: start / hand / place', () => {
     expect(rb.finished).toBe(false);
     s = (await fake.getRoomByCode(code))!.state as TimelineState;
     expect(s.line).toHaveLength(2);
+
+    // place 只寫回放牌者自己的手牌（一列），不重寫所有人的
+    const lastWrite = fake._setHandsCalls().at(-1)!;
+    expect(Object.keys(lastWrite)).toEqual([other.playerId]);
   });
 });
 

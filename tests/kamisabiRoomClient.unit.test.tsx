@@ -28,12 +28,12 @@ describe('roomApi', () => {
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ error: '慢了一步', code: 'ROUND_RESOLVED' }), { status: 409, headers: { 'content-type': 'application/json' } }),
     );
-    await expect(roomApi.claim('ABCDE', 'tok', 's1')).rejects.toMatchObject({ status: 409, code: 'ROUND_RESOLVED', message: '慢了一步' });
+    await expect(roomApi.claim('ABCDE', 'tok', 's1', 3)).rejects.toMatchObject({ status: 409, code: 'ROUND_RESOLVED', message: '慢了一步' });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('/api/kamisabi/room/ABCDE/claim');
     expect((init as RequestInit).method).toBe('POST');
     expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer tok', 'content-type': 'application/json' });
-    expect((init as RequestInit).body).toBe(JSON.stringify({ songId: 's1' }));
+    expect((init as RequestInit).body).toBe(JSON.stringify({ songId: 's1', round: 3 }));
   });
   test('RoomApiError 是 Error', () => {
     expect(new RoomApiError('x', 400, 'X')).toBeInstanceOf(Error);
@@ -55,6 +55,23 @@ describe('useRoom（沒有 Supabase 時用輪詢）', () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: '找不到這個房間。', code: 'ROOM_NOT_FOUND' }), { status: 404 }));
     const { result: r2 } = renderHook(() => useRoom('ZZZZZ'));
     await waitFor(() => expect(r2.current.error).toBe('找不到這個房間。'));
+  });
+
+  test('載入成功後 refresh 失敗：保留 room、只設 error；下次成功就清掉 error', async () => {
+    const snapshot = { room: { id: 'r1', code: 'ABCDE', mode: null, status: 'lobby', brand: 'music_ml', songs: [], state: {}, version: 2 }, players: [], serverNow: Date.now() };
+    // 每次都給新的 Response（body 只能讀一次）
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify(snapshot), { status: 200 }));
+    const { result } = renderHook(() => useRoom('ABCDE'));
+    await waitFor(() => expect(result.current.room?.version).toBe(2));
+
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.room?.version).toBe(2);
+    expect(result.current.error).toBe('無法連線到房間，請稍後再試。');
+
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.error).toBeNull();
+    expect(result.current.room?.version).toBe(2);
   });
 });
 

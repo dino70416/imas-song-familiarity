@@ -28,7 +28,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ code: stri
       const finished = placed.state.winnerId !== null;
       return {
         patch: finished ? { state: placed.state, status: 'finished' as const } : { state: placed.state },
-        hands: placed.hands,
+        // 只有放牌者的手牌會變，只寫這一列（避免逐人重寫時被讀到半新半舊）
+        hands: { [player.id]: placed.hands[player.id] },
         result: { correct: placed.correct, releaseDate: placed.releaseDate, hand: placed.hands[player.id], state: placed.state, finished },
       };
     });

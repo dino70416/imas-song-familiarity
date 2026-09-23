@@ -19,6 +19,8 @@ export function useRoom(code: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [realtime, setRealtime] = useState(false);
+  /** 房間確定不存在（404）：停止輪詢；其他錯誤都當暫時性，繼續重試 */
+  const [notFound, setNotFound] = useState(false);
   const skewRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -29,7 +31,9 @@ export function useRoom(code: string) {
       setPlayers(snap.players);
       setError(null);
     } catch (e) {
+      // 已載入過的 room 保留不動：暫時性錯誤只顯示提示，不把玩家踢出遊戲畫面
       setError(e instanceof RoomApiError ? e.message : '無法連線到房間，請稍後再試。');
+      if (e instanceof RoomApiError && e.code === 'ROOM_NOT_FOUND') setNotFound(true);
     } finally {
       setLoading(false);
     }
@@ -69,12 +73,12 @@ export function useRoom(code: string) {
     };
   }, [roomId, refresh]);
 
-  // 輪詢備援
+  // 輪詢備援（暫時性錯誤時照樣輪詢，網路恢復就自動清掉 error；只有 404 才停）
   useEffect(() => {
-    if (realtime || error) return;
+    if (realtime || notFound) return;
     const t = setInterval(refresh, POLL_MS);
     return () => clearInterval(t);
-  }, [realtime, error, refresh]);
+  }, [realtime, notFound, refresh]);
 
   // 回到分頁時補抓一次
   useEffect(() => {

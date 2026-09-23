@@ -110,7 +110,7 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     if (myPending > 0) { setMessage({ kind: 'bad', text: 'お手つき！請先選一張自己的牌丟回場上。' }); return; }
     setBusy(true);
     try {
-      const r = await roomApi.claim(code, session.token, song.id);
+      const r = await roomApi.claim(code, session.token, song.id, state.round);
       if (r.result === 'correct') {
         setFlash({ songId: song.id, status: 'correct' });
         setMessage({ kind: 'ok', text: `取得『${song.title}』！${song.points === 2 ? '（シングル 2 分）' : ''}` });
@@ -127,8 +127,9 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     } catch (e) {
       setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再試一次。' });
     } finally {
-      setBusy(false);
+      // 先拿到最新公開狀態再解鎖，避免玩家用舊狀態再點一次（例如丟牌後對話框閃回）
       await refresh();
+      setBusy(false);
     }
   };
 
@@ -142,8 +143,9 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     } catch (e) {
       setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再試一次。' });
     } finally {
-      setBusy(false);
+      // 先拿到最新公開狀態再解鎖，避免玩家用舊狀態再點一次（例如丟牌後對話框閃回）
       await refresh();
+      setBusy(false);
     }
   };
 
@@ -156,8 +158,9 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     } catch (e) {
       setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再試一次。' });
     } finally {
-      setBusy(false);
+      // 先拿到最新公開狀態再解鎖，避免玩家用舊狀態再點一次（例如丟牌後對話框閃回）
       await refresh();
+      setBusy(false);
     }
   };
 
@@ -169,8 +172,9 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     } catch (e) {
       setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再試一次。' });
     } finally {
-      setBusy(false);
+      // 先拿到最新公開狀態再解鎖，避免玩家用舊狀態再點一次（例如丟牌後對話框閃回）
       await refresh();
+      setBusy(false);
     }
   };
 

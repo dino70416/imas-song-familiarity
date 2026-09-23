@@ -29,7 +29,8 @@ export default function RoomClient({ code }: { code: string }) {
     );
   }
 
-  if (error || !room) {
+  // 從來沒載入成功（找不到房間 / 一開始就斷線）→ 整頁錯誤
+  if (!room) {
     return (
       <div style={{ display: 'flex', height: '60vh', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
         <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '20px 24px', borderRadius: '16px', border: '1px solid #fecaca', textAlign: 'center' }}>
@@ -40,29 +41,33 @@ export default function RoomClient({ code }: { code: string }) {
     );
   }
 
+  let view: React.ReactNode = null;
   if (room.status === 'lobby') {
-    if (!me || !session) {
-      return (
-        <JoinForm
-          code={code}
-          onJoined={(s) => {
-            saveSession(code, s);
-            setSession(s);
-            refresh();
-          }}
-        />
-      );
-    }
-    return <Lobby code={code} room={room} players={players} me={me} session={session} refresh={refresh} />;
+    view = !me || !session ? (
+      <JoinForm
+        code={code}
+        onJoined={(s) => {
+          saveSession(code, s);
+          setSession(s);
+          refresh();
+        }}
+      />
+    ) : (
+      <Lobby code={code} room={room} players={players} me={me} session={session} refresh={refresh} />
+    );
+  } else if (room.status === 'finished') {
+    view = <Results room={room} players={players} />;
+  } else if (isTimelineState(room.state)) {
+    view = <TimelineGame code={code} room={room} players={players} me={me} session={me ? session : null} refresh={refresh} />;
+  } else if (isIntroState(room.state)) {
+    view = <IntroGame code={code} room={room} players={players} me={me} session={me ? session : null} refresh={refresh} toLocalTime={toLocalTime} />;
   }
 
-  if (room.status === 'finished') return <Results room={room} players={players} />;
-
-  if (isTimelineState(room.state)) {
-    return <TimelineGame code={code} room={room} players={players} me={me} session={me ? session : null} refresh={refresh} />;
-  }
-  if (isIntroState(room.state)) {
-    return <IntroGame code={code} room={room} players={players} me={me} session={me ? session : null} refresh={refresh} toLocalTime={toLocalTime} />;
-  }
-  return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* 已載入過的房間遇到暫時性錯誤：留在原畫面、只顯示提示，輪詢會自動重試 */}
+      {error && <div className="kamisabi-banner is-bad" role="alert">⚠️ {error}（正在重試…）</div>}
+      {view}
+    </div>
+  );
 }

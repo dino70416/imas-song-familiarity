@@ -49,8 +49,9 @@ export const roomApi = {
   join: (code: string, name: string) => call<{ playerId: string; token: string; seat: number }>(`${base(code)}/join`, { body: { name } }),
   start: (code: string, token: string, mode: RoomMode) => call<{ state: IntroState | TimelineState }>(`${base(code)}/start`, { body: { mode }, token }),
   next: (code: string, token: string) => call<{ state: IntroState; finished: boolean }>(`${base(code)}/next`, { body: {}, token }),
-  claim: (code: string, token: string, songId: string) =>
-    call<{ result: 'correct' | 'otetsuki' | 'otetsuki_no_cards'; cards: RoomSong[]; finished: boolean }>(`${base(code)}/claim`, { body: { songId }, token }),
+  /** round = 點牌時看到的回合，伺服器用來分辨「慢了一步（已換題）」與真正的お手つき */
+  claim: (code: string, token: string, songId: string, round: number) =>
+    call<{ result: 'correct' | 'otetsuki' | 'otetsuki_no_cards'; cards: RoomSong[]; finished: boolean }>(`${base(code)}/claim`, { body: { songId, round }, token }),
   discard: (code: string, token: string, songId: string) => call<{ state: IntroState }>(`${base(code)}/discard`, { body: { songId }, token }),
   place: (code: string, token: string, songId: string, slot: number) =>
     call<{ correct: boolean; releaseDate: string; hand: string[]; state: TimelineState; finished: boolean }>(`${base(code)}/place`, { body: { songId, slot }, token }),

@@ -107,9 +107,14 @@ describe('runRoomMutation', () => {
     expect((await store.getRoomByCode('ABCDE'))?.version).toBe(0);
   });
 
-  test('hands 有給時寫進 room_secrets', async () => {
-    const { host } = await seedRoom();
+  test('hands 有給時寫進 room_secrets，而且在 rooms.version 更新「之前」就寫好（Realtime 推出去時手牌已可讀）', async () => {
+    const { host, room } = await seedRoom();
+    let handAtUpdate: string[] | undefined;
+    fake._setBeforeUpdate(async () => {
+      handAtUpdate = (await store.findSecretByToken(room.id, 'tok-host'))?.hand;
+    });
     await runRoomMutation(req('tok-host'), 'ABCDE', {}, () => ({ patch: {}, result: null, hands: { [host.id]: ['s1', 's2'] } }));
-    expect((await store.findSecretByToken((await store.getRoomByCode('ABCDE'))!.id, 'tok-host'))?.hand).toEqual(['s1', 's2']);
+    expect(handAtUpdate).toEqual(['s1', 's2']);
+    expect((await store.findSecretByToken(room.id, 'tok-host'))?.hand).toEqual(['s1', 's2']);
   });
 });

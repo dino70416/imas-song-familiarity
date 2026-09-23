@@ -48,7 +48,7 @@ describe('IntroGame', () => {
     fireEvent.click(screen.getByRole('button', { name: /Song a/ }));
     await waitFor(() => expect(screen.getByText(/取得『Song a』/)).toBeDefined());
     const claim = calls.find((c) => c.method === 'POST' && /\/claim$/.test(c.url))!;
-    expect(claim.body).toEqual({ songId: 'a' });
+    expect(claim.body).toEqual({ songId: 'a', round: 1 });
     expect(refresh).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /Song a/ }).className).toContain('is-correct');
   });
@@ -113,6 +113,22 @@ describe('IntroGame', () => {
     await waitFor(() => expect(screen.getByText(/此裝置無法朗讀/)).toBeDefined());
     expect(calls.some((c) => c.method === 'HEAD')).toBe(true);
     expect(calls.some((c) => /\/api\/apple\/preview/.test(c.url))).toBe(false);
+  });
+
+  test('動作後要等 refresh 完成才解除 busy（避免用舊狀態再點一次）', async () => {
+    mockRoomFetch([
+      { match: /\/api\/apple\/preview/, handle: () => ({ json: preview }) },
+      { method: 'POST', match: /\/claim$/, handle: () => ({ json: { result: 'correct', cards: [], finished: false } }) },
+    ]);
+    let release!: () => void;
+    const refresh = vi.fn(() => new Promise<void>((resolve) => { release = resolve; }));
+    render(<IntroGame code="ABCDE" room={roomWith({})} players={players} me={guest} session={session} refresh={refresh} toLocalTime={toLocalTime} />);
+    fireEvent.click(screen.getByRole('button', { name: /Song a/ }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    // refresh 還沒完成：其他牌仍然不能點
+    expect((screen.getByRole('button', { name: /Song b/ }) as HTMLButtonElement).disabled).toBe(true);
+    release();
+    await waitFor(() => expect((screen.getByRole('button', { name: /Song b/ }) as HTMLButtonElement).disabled).toBe(false));
   });
 
   test('重新整理後若仍有待丟的牌，自動打開丟牌對話框', async () => {

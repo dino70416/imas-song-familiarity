@@ -47,8 +47,8 @@ export default function Lobby({ code, room, players, me, session, refresh }: Lob
     } catch (e) {
       setError(e instanceof RoomApiError ? e.message : '開始失敗，請再試一次。');
     } finally {
-      setBusy(false);
       await refresh();
+      setBusy(false);
     }
   };
 

@@ -13,9 +13,9 @@ const guest: PlayerRow = { id: 'p2', room_id: 'r1', name: '未来', seat: 1, is_
 const players = [host, guest];
 const session = { playerId: 'p2', token: 'tok', name: '未来' };
 
-function roomWith(state: Partial<TimelineState>): PublicRoom {
+function roomWith(state: Partial<TimelineState>, version = 5): PublicRoom {
   return {
-    id: 'r1', code: 'ABCDE', mode: 'timeline', status: 'playing', brand: 'music_ml', songs: SONGS, version: 5,
+    id: 'r1', code: 'ABCDE', mode: 'timeline', status: 'playing', brand: 'music_ml', songs: SONGS, version,
     state: { kind: 'timeline', order: ['p1', 'p2'], turnSeat: 1, deckCount: 1, line: ['d11'], handCounts: { p1: 5, p2: 2 }, winnerId: null, lastResult: null, ...state },
   };
 }
@@ -68,6 +68,30 @@ describe('TimelineGame', () => {
     expect(screen.getByText(/2012-01-01/)).toBeDefined();
     expect(screen.getByText(/罰抽一張/)).toBeDefined();
     expect(screen.getByRole('button', { name: /Song d12/ })).toBeDefined();
+  });
+
+  test('放牌回應之前發出的 /hand（讀到舊手牌）晚到時要被忽略，不會把剛放出去的牌蓋回手上', async () => {
+    let handCalls = 0;
+    mockRoomFetch([
+      // 第一次：初始手牌；之後的請求：模擬伺服器還沒寫完、回舊手牌，而且比 place 晚回來
+      { match: /\/hand$/, handle: () => (++handCalls === 1 ? { json: { hand: ['d02', 'd04'] } } : { json: { hand: ['d02', 'd04'] }, delayMs: 120 }) },
+      { method: 'POST', match: /\/place$/, handle: () => ({ json: { correct: true, releaseDate: '2012-01-01', hand: ['d04'], state: {}, finished: false }, delayMs: 60 }) },
+    ]);
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(<TimelineGame code="ABCDE" room={roomWith({})} players={players} me={guest} session={session} refresh={refresh} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Song d02/ })).toBeDefined());
+
+    fireEvent.click(screen.getByRole('button', { name: /Song d02/ }));
+    fireEvent.click(screen.getByRole('button', { name: '放在第 1 個位置' }));
+    // place 還在路上，Realtime 先把新 version 推來 → 觸發一次會晚回、內容舊的 /hand
+    rerender(<TimelineGame code="ABCDE" room={roomWith({ line: ['d02', 'd11'], handCounts: { p1: 5, p2: 1 } }, 6)} players={players} me={guest} session={session} refresh={refresh} />);
+    await waitFor(() => expect(screen.getByText(/正確！/)).toBeDefined());
+    expect(screen.queryByRole('button', { name: /Song d02/ })).toBeNull();
+
+    // 等那個舊的 /hand 回來，手牌仍然只剩 d04
+    await new Promise((r) => setTimeout(r, 200));
+    expect(screen.queryByRole('button', { name: /Song d02/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Song d04/ })).toBeDefined();
   });
 
   test('顯示上一手結果與各人手牌數；觀戰者沒有手牌區', async () => {

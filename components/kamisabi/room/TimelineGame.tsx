@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import KamisabiCard from '../KamisabiCard';
 import { RoomApiError, roomApi } from './roomApi';
 import type { RoomSession } from './roomStorage';
@@ -34,13 +34,15 @@ export default function TimelineGame({ code, room, players, me, session, refresh
   const turnPlayerId = state.order[state.turnSeat];
   const myTurn = !!me && turnPlayerId === me.id && !state.winnerId;
 
-  // 每次房間版本變動就重抓手牌（放牌 / 罰抽後會變）
+  // 每次房間版本變動就重抓手牌（放牌 / 罰抽後會變）。
+  // handSeq：/place 回應是「最新」的手牌，比它更早發出的 /hand 回來時要忽略，
+  // 否則 Realtime 先推 version、伺服器還沒寫完手牌時讀到的舊值會把剛放出去的牌蓋回來。
+  const handSeq = useRef(0);
   const token = session?.token;
   useEffect(() => {
     if (!token) return;
-    let cancelled = false;
-    roomApi.hand(code, token).then((r) => { if (!cancelled) setHand(r.hand); }).catch(() => {});
-    return () => { cancelled = true; };
+    const seq = ++handSeq.current;
+    roomApi.hand(code, token).then((r) => { if (seq === handSeq.current) setHand(r.hand); }).catch(() => {});
   }, [code, token, room.version]);
 
   const place = async (slot: number) => {
@@ -50,6 +52,7 @@ export default function TimelineGame({ code, room, players, me, session, refresh
     try {
       const r = await roomApi.place(code, session.token, selected, slot);
       const drew = r.hand.length > hand.length;
+      handSeq.current++; // 讓還在路上的 /hand 作廢
       setHand(r.hand);
       setSelected(null);
       setMessage(
@@ -60,8 +63,8 @@ export default function TimelineGame({ code, room, players, me, session, refresh
     } catch (e) {
       setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再試一次。' });
     } finally {
-      setBusy(false);
       await refresh();
+      setBusy(false);
     }
   };
 

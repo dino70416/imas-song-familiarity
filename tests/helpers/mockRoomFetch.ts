@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 export interface FetchRoute {
   method?: 'GET' | 'POST' | 'HEAD';
   match: RegExp;
-  handle: (body: unknown, url: string) => { status?: number; json?: unknown };
+  handle: (body: unknown, url: string) => { status?: number; json?: unknown; delayMs?: number };
 }
 
 export interface FetchCall { method: string; url: string; body: unknown }
@@ -21,6 +21,7 @@ export function mockRoomFetch(routes: FetchRoute[]): FetchCall[] {
       return new Response(JSON.stringify({ error: `no mock route: ${method} ${url}` }), { status: 500, headers: { 'content-type': 'application/json' } });
     }
     const out = route.handle(body, url);
+    if (out.delayMs) await new Promise((r) => setTimeout(r, out.delayMs));
     return new Response(out.json === undefined ? null : JSON.stringify(out.json), { status: out.status ?? 200, headers: { 'content-type': 'application/json' } });
   }) as unknown as typeof fetch;
   return calls;

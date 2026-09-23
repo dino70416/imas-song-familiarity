@@ -8,12 +8,17 @@ export function createFakeStore() {
   let secrets: SecretRow[] = [];
   let seq = 0;
   const uuid = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`;
+  /** 測試用：下一次 updateRoom 在檢查 version 之前先跑這個（模擬「別人搶先寫入」），只跑一次 */
+  let beforeUpdate: (() => Promise<void>) | null = null;
+  let setHandsCalls: Record<string, string[]>[] = [];
 
   return {
-    reset() { rooms = []; players = []; secrets = []; seq = 0; },
+    reset() { rooms = []; players = []; secrets = []; seq = 0; beforeUpdate = null; setHandsCalls = []; },
     // 測試用的後門
     _rooms: () => rooms,
     _secrets: () => secrets,
+    _setBeforeUpdate(fn: (() => Promise<void>) | null) { beforeUpdate = fn; },
+    _setHandsCalls: () => setHandsCalls,
 
     async createRoom(input: { code: string; brand: string; songs: RoomSong[] }): Promise<RoomRow> {
       if (rooms.some((r) => r.code === input.code)) throw new AppError('房號重複', 409, 'CODE_TAKEN');
@@ -45,9 +50,15 @@ export function createFakeStore() {
       return structuredClone(secrets.filter((s) => s.room_id === roomId));
     },
     async setHands(roomId: string, hands: Record<string, string[]>): Promise<void> {
+      setHandsCalls.push(structuredClone(hands));
       for (const s of secrets) if (s.room_id === roomId && hands[s.player_id]) s.hand = [...hands[s.player_id]];
     },
     async updateRoom(roomId: string, expectedVersion: number, patch: { mode?: RoomMode; status?: RoomStatus; state?: RoomState }): Promise<RoomRow> {
+      if (beforeUpdate) {
+        const fn = beforeUpdate;
+        beforeUpdate = null;
+        await fn();
+      }
       const r = rooms.find((x) => x.id === roomId);
       if (!r || r.version !== expectedVersion) throw new AppError('房間狀態已被其他人更新，請重試。', 409, 'VERSION_CONFLICT');
       Object.assign(r, structuredClone(patch), { version: r.version + 1, updated_at: new Date().toISOString() });

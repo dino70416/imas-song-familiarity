@@ -254,3 +254,73 @@ describe('start / next / claim / discard / end', () => {
     expect((await fake.getRoomByCode(host.code))!.status).toBe('finished');
   });
 });
+
+import { POST as placeCard } from '@/app/api/kamisabi/room/[code]/place/route';
+import { GET as getHand } from '@/app/api/kamisabi/room/[code]/hand/route';
+import type { TimelineState } from '@/lib/kamisabiRoom/types';
+
+const DATED = Array.from({ length: 12 }, (_, i) => song(`d${String(i + 1).padStart(2, '0')}`, 1, `20${String(i + 10)}-01-01`));
+
+describe('timeline: start / hand / place', () => {
+  test('曲數不足 → 400 NOT_ENOUGH_DATED_SONGS，房間留在 lobby', async () => {
+    const host = await openRoom();            // SONGS 都沒日期
+    await joinAs(host.code, 'guest');
+    const res = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'timeline' }, host.token), ctx(host.code));
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('NOT_ENOUGH_DATED_SONGS');
+    expect((await fake.getRoomByCode(host.code))!.status).toBe('lobby');
+  });
+
+  test('發牌後各自只看得到自己的手牌；輪到的人放牌；放錯罰抽', async () => {
+    buildRoomSongs.mockResolvedValue(DATED);
+    const host = await openRoom();
+    const guest = await joinAs(host.code, 'guest');
+    const started = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'timeline' }, host.token), ctx(host.code));
+    expect(started.status).toBe(200);
+    const code = host.code;
+    let s = (await fake.getRoomByCode(code))!.state as TimelineState;
+    expect(s.line).toHaveLength(1);
+    expect(s.deckCount).toBe(1);
+
+    const hHand = (await (await getHand(get(`/api/kamisabi/room/${code}/hand`, host.token), ctx(code))).json()).hand as string[];
+    const gHand = (await (await getHand(get(`/api/kamisabi/room/${code}/hand`, guest.token), ctx(code))).json()).hand as string[];
+    expect(hHand).toHaveLength(5);
+    expect(gHand).toHaveLength(5);
+    expect(hHand.some((id) => gHand.includes(id))).toBe(false);
+    expect((await getHand(get(`/api/kamisabi/room/${code}/hand`), ctx(code))).status).toBe(401);
+
+    const turn = s.order[s.turnSeat] === host.playerId ? { me: host, hand: hHand } : { me: guest, hand: gHand };
+    const other = turn.me === host ? guest : host;
+
+    // 不是你的回合
+    const nyt = await placeCard(post(`/api/kamisabi/room/${code}/place`, { songId: 'd01', slot: 0 }, other.token), ctx(code));
+    expect((await nyt.json()).code).toBe('NOT_YOUR_TURN');
+
+    // 故意放錯：把手牌中最舊的放最右邊（初期札之後）── 除非初期札比它更舊，那就放最左邊
+    const byId = new Map(DATED.map((x) => [x.id, x]));
+    const oldest = [...turn.hand].sort((a, b) => byId.get(a)!.releaseDate!.localeCompare(byId.get(b)!.releaseDate!))[0];
+    const initialDate = byId.get(s.line[0])!.releaseDate!;
+    const wrongSlot = byId.get(oldest)!.releaseDate! <= initialDate ? 1 : 0;
+    const wrong = await placeCard(post(`/api/kamisabi/room/${code}/place`, { songId: oldest, slot: wrongSlot }, turn.me.token), ctx(code));
+    expect(wrong.status).toBe(200);
+    const wb = await wrong.json();
+    expect(wb.correct).toBe(false);
+    expect(wb.hand).toHaveLength(6); // 罰抽
+    expect(wb.releaseDate).toBe(byId.get(oldest)!.releaseDate);
+    s = (await fake.getRoomByCode(code))!.state as TimelineState;
+    expect(s.deckCount).toBe(0);
+    expect(s.order[s.turnSeat]).toBe(other.playerId);
+
+    // 換另一個人正確放：同一張邏輯反過來
+    const oHand = (await (await getHand(get(`/api/kamisabi/room/${code}/hand`, other.token), ctx(code))).json()).hand as string[];
+    const oOldest = [...oHand].sort((a, b) => byId.get(a)!.releaseDate!.localeCompare(byId.get(b)!.releaseDate!))[0];
+    const rightSlot = byId.get(oOldest)!.releaseDate! <= initialDate ? 0 : 1;
+    const right = await placeCard(post(`/api/kamisabi/room/${code}/place`, { songId: oOldest, slot: rightSlot }, other.token), ctx(code));
+    const rb = await right.json();
+    expect(rb.correct).toBe(true);
+    expect(rb.hand).toHaveLength(4);
+    expect(rb.finished).toBe(false);
+    s = (await fake.getRoomByCode(code))!.state as TimelineState;
+    expect(s.line).toHaveLength(2);
+  });
+});

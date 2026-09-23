@@ -6,5 +6,13 @@
  *
  * 範例：
  *   'READY!!': 'ラララ\nルルル',
+ *
+ * 下面先列出目前有 Apple ID（會出現在房間）的歌，把引號裡填上讀み札的片段即可；
+ * 空字串代表還沒填，產檔腳本會跳過、前端會顯示「還沒有朗讀檔」。
  */
-export const KARUTA_LYRICS: Record<string, string> = {};
+export const KARUTA_LYRICS: Record<string, string> = {
+  'Raise the FLAG': '',
+  'アライブファクター': '',
+  'ハルカナミライ': '',
+  '深層マーメイド': '',
+};

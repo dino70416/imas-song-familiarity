@@ -40,9 +40,13 @@ async function serviceAccountToken(credsPath: string): Promise<string> {
 }
 
 async function main() {
-  const entries = Object.entries(KARUTA_LYRICS);
+  const entries = Object.entries(KARUTA_LYRICS).filter(([title, lyrics]) => {
+    if (lyrics.trim()) return true;
+    console.warn(`還沒填歌詞，跳過：${title}`);
+    return false;
+  });
   if (entries.length === 0) {
-    console.log('scripts/karuta-lyrics.ts 是空的，先填副歌片段。');
+    console.log('scripts/karuta-lyrics.ts 還沒有任何一首填了副歌片段。');
     return;
   }
   const apiKey = process.env.GOOGLE_TTS_API_KEY;

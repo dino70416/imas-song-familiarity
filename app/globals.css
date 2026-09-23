@@ -1990,3 +1990,113 @@ header h1 {
 .kamisabi-card-controls svg.is-play {
   width: 16%;
 }
+/* ---- 線上房間：卡片狀態 ---- */
+button.kamisabi-card {
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+button.kamisabi-card:disabled { cursor: default; }
+button.kamisabi-card:not(:disabled):hover { transform: translateY(-3px); }
+button.kamisabi-card:focus-visible { outline: 3px solid #6366f1; outline-offset: 2px; }
+.kamisabi-card.is-taken > *:not(.kamisabi-card-taken-tag):not(.kamisabi-card-points) {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+.kamisabi-card-taken-tag {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  background: #1b1b1f;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 8cqw;
+  font-weight: 900;
+  white-space: nowrap;
+  max-width: 95%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.kamisabi-card.is-correct { box-shadow: 0 0 0 3px #22c55e, 0 8px 18px rgba(34, 197, 94, 0.35); }
+.kamisabi-card.is-wrong { box-shadow: 0 0 0 3px #ef4444; animation: kamisabi-shake 0.5s; }
+@keyframes kamisabi-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+.kamisabi-card.is-selected { transform: translateY(-8px); box-shadow: 0 0 0 3px #6366f1, 0 10px 20px rgba(99, 102, 241, 0.3); }
+@media (prefers-reduced-motion: reduce) {
+  .kamisabi-card.is-wrong { animation: none; }
+  button.kamisabi-card { transition: none; }
+}
+.kamisabi-card-points {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #f59e0b;
+  color: #1b1b1f;
+  font-weight: 900;
+  font-size: 7cqw;
+  padding: 2px 7px;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.kamisabi-card-date {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  background: #1b1b1f;
+  color: #fff;
+  font-size: 7cqw;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.kamisabi-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 12px;
+}
+.kamisabi-card-grid .kamisabi-card { max-width: none; width: 100%; }
+.kamisabi-room-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.kamisabi-timeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 8px 30px;
+}
+.kamisabi-timeline .kamisabi-card { width: 112px; max-width: none; flex-shrink: 0; }
+.kamisabi-slot {
+  flex-shrink: 0;
+  width: 40px;
+  height: 130px;
+  border-radius: 10px;
+  border: 2px dashed #a5b4fc;
+  background: rgba(99, 102, 241, 0.08);
+  color: #4f46e5;
+  font-weight: 900;
+  font-size: 18px;
+  cursor: pointer;
+}
+.kamisabi-slot:disabled { opacity: 0.3; cursor: default; }
+.kamisabi-hand { display: flex; gap: 12px; overflow-x: auto; padding: 14px 4px 8px; }
+.kamisabi-hand .kamisabi-card { width: 124px; max-width: none; flex-shrink: 0; }
+.kamisabi-banner { padding: 10px 14px; border-radius: 12px; font-weight: 700; line-height: 1.5; }
+.kamisabi-banner.is-ok { background: #dcfce7; color: #166534; }
+.kamisabi-banner.is-bad { background: #fee2e2; color: #991b1b; }
+.kamisabi-banner.is-info { background: #e0e7ff; color: #3730a3; }

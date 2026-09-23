@@ -134,3 +134,113 @@ describe('イントロ / かるた', () => {
     expect(isIntroFinished({ ...done, taken: { a: 'p1' } }, SONGS)).toBe(false);
   });
 });
+
+import { applyPlace, dealTimeline, deckSongs, timelineSongs } from '@/lib/kamisabiRoom/logic';
+
+describe('リリースタイムライン', () => {
+  // 12 首有日期（d01..d12），1 首沒日期（x）
+  const DATED = Array.from({ length: 12 }, (_, i) => song(`d${String(i + 1).padStart(2, '0')}`, 1, `20${String(i + 10)}-01-01`));
+  const ALL = [...DATED, song('x')];
+
+  test('timelineSongs 只留有發行日的歌', () => {
+    expect(timelineSongs(ALL).map((s) => s.id)).not.toContain('x');
+    expect(timelineSongs(ALL)).toHaveLength(12);
+  });
+
+  test('dealTimeline：每人 5 張、初期札 1 張、山札 = 其餘；turnSeat 隨機', () => {
+    const { state, hands } = dealTimeline(ALL, ['p1', 'p2'], () => 0);
+    expect(hands.p1).toHaveLength(5);
+    expect(hands.p2).toHaveLength(5);
+    expect(state.line).toHaveLength(1);
+    expect(state.deckCount).toBe(12 - 10 - 1);
+    expect(state.handCounts).toEqual({ p1: 5, p2: 5 });
+    expect(state.order).toEqual(['p1', 'p2']);
+    expect(state.turnSeat).toBe(0);
+    expect(state.winnerId).toBeNull();
+    // 手牌 + line + 山札 不重複且都在有日期的歌裡
+    const dealt = [...hands.p1, ...hands.p2, ...state.line];
+    expect(new Set(dealt).size).toBe(11);
+    expect(dealt).not.toContain('x');
+    expect(deckSongs(ALL, state, hands)).toHaveLength(1);
+  });
+
+  test('dealTimeline：有日期的歌不足 人數×5+1 → NOT_ENOUGH_DATED_SONGS', () => {
+    expect.assertions(1);
+    try { dealTimeline(ALL, ['p1', 'p2', 'p3'], () => 0); } catch (e) { expect(codeOf(e)).toBe('NOT_ENOUGH_DATED_SONGS'); }
+  });
+
+  function fixedGame() {
+    // 手動排一局：p1 手牌 d01,d03,d05,d07,d09；p2 手牌 d02,d04,d06,d08,d10；初期札 d11；山札 d12
+    const hands = { p1: ['d01', 'd03', 'd05', 'd07', 'd09'], p2: ['d02', 'd04', 'd06', 'd08', 'd10'] };
+    const state = {
+      kind: 'timeline' as const, order: ['p1', 'p2'], turnSeat: 0, deckCount: 1, line: ['d11'],
+      handCounts: { p1: 5, p2: 5 }, winnerId: null, lastResult: null,
+    };
+    return { state, hands };
+  }
+
+  test('applyPlace 正確：放在初期札左邊，手牌減一，輪到下一位', () => {
+    const { state, hands } = fixedGame();
+    const r = applyPlace(state, ALL, hands, 'p1', 'd01', 0);
+    expect(r.correct).toBe(true);
+    expect(r.releaseDate).toBe('2010-01-01');
+    expect(r.state.line).toEqual(['d01', 'd11']);
+    expect(r.hands.p1).toEqual(['d03', 'd05', 'd07', 'd09']);
+    expect(r.state.handCounts.p1).toBe(4);
+    expect(r.state.turnSeat).toBe(1);
+    expect(r.state.deckCount).toBe(1);
+    expect(r.state.lastResult).toEqual({ type: 'placed', playerId: 'p1', songId: 'd01', slot: 0, correct: true, drew: false, releaseDate: '2010-01-01' });
+  });
+
+  test('applyPlace 放錯：牌留在手上、山札有牌時罰抽一張、仍換人', () => {
+    const { state, hands } = fixedGame();
+    const r = applyPlace(state, ALL, hands, 'p1', 'd01', 1); // d01 比 d11 舊卻放右邊
+    expect(r.correct).toBe(false);
+    expect(r.state.line).toEqual(['d11']);
+    expect(r.hands.p1).toEqual(['d01', 'd03', 'd05', 'd07', 'd09', 'd12']);
+    expect(r.state.deckCount).toBe(0);
+    expect(r.state.handCounts.p1).toBe(6);
+    expect(r.state.lastResult?.drew).toBe(true);
+    expect(r.state.turnSeat).toBe(1);
+    // 山札 0 → 放錯不抽
+    const r2 = applyPlace(r.state, ALL, r.hands, 'p2', 'd02', 0 + 1);
+    expect(r2.correct).toBe(false);
+    expect(r2.hands.p2).toHaveLength(5);
+    expect(r2.state.lastResult?.drew).toBe(false);
+    expect(r2.state.turnSeat).toBe(0); // 繞回第一位
+  });
+
+  test('applyPlace：中間 slot 與同日視為皆可', () => {
+    const { state, hands } = fixedGame();
+    let r = applyPlace(state, ALL, hands, 'p1', 'd01', 0);            // [d01, d11]
+    r = applyPlace(r.state, ALL, r.hands, 'p2', 'd06', 1);            // [d01, d06, d11]
+    expect(r.correct).toBe(true);
+    expect(r.state.line).toEqual(['d01', 'd06', 'd11']);
+    // 同日：多一首和 d06 同日的歌塞在手牌
+    const sameDay = [...ALL, song('same', 1, '2015-01-01')];
+    const hands2 = { ...r.hands, p1: ['same', ...r.hands.p1] };
+    const left = applyPlace(r.state, sameDay, hands2, 'p1', 'same', 1);
+    const right = applyPlace(r.state, sameDay, hands2, 'p1', 'same', 2);
+    expect(left.correct).toBe(true);
+    expect(right.correct).toBe(true);
+  });
+
+  test('applyPlace：不是你的回合 / 不在手牌 / slot 超出範圍', () => {
+    expect.assertions(4);
+    const { state, hands } = fixedGame();
+    try { applyPlace(state, ALL, hands, 'p2', 'd02', 0); } catch (e) { expect(codeOf(e)).toBe('NOT_YOUR_TURN'); }
+    try { applyPlace(state, ALL, hands, 'p1', 'd02', 0); } catch (e) { expect(codeOf(e)).toBe('NOT_IN_HAND'); }
+    try { applyPlace(state, ALL, hands, 'p1', 'd01', 5); } catch (e) { expect(codeOf(e)).toBe('BAD_SLOT'); }
+    try { applyPlace(state, ALL, hands, 'p1', 'd01', -1); } catch (e) { expect(codeOf(e)).toBe('BAD_SLOT'); }
+  });
+
+  test('先出完手牌者勝，之後不能再放', () => {
+    expect.assertions(3);
+    const hands = { p1: ['d01'], p2: ['d02', 'd04'] };
+    const state = { ...fixedGame().state, handCounts: { p1: 1, p2: 2 } };
+    const r = applyPlace(state, ALL, hands, 'p1', 'd01', 0);
+    expect(r.state.winnerId).toBe('p1');
+    expect(r.state.handCounts.p1).toBe(0);
+    try { applyPlace(r.state, ALL, r.hands, 'p2', 'd02', 0); } catch (e) { expect(codeOf(e)).toBe('GAME_OVER'); }
+  });
+});

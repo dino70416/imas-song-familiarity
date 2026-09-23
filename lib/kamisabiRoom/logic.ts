@@ -1,5 +1,5 @@
 import { AppError } from '@/lib/errors';
-import { NEXT_CARD_DELAY_MS, ROOM_CODE_LENGTH, type IntroState, type RoomSong } from './types';
+import { NEXT_CARD_DELAY_MS, ROOM_CODE_LENGTH, TIMELINE_HAND_SIZE, type IntroState, type RoomSong, type TimelineState } from './types';
 
 /**
  * KAMISABI 房間規則的純函式：不碰 DB、不碰時間（now 由外面傳入）、隨機由 random 傳入方便測試。
@@ -152,4 +152,126 @@ export function applyDiscard(state: IntroState, songs: RoomSong[], playerId: str
     pendingDiscards,
     lastResult: { type: 'discard', playerId, songId, round: state.round },
   };
+}
+
+// ---------------- リリースタイムライン ----------------
+
+export function timelineSongs(songs: RoomSong[]): RoomSong[] {
+  return songs.filter((s) => !!s.releaseDate);
+}
+
+function shuffleWith<T>(list: T[], random: () => number): T[] {
+  // Fisher–Yates，用傳入的 random 方便測試（lib/shuffle 綁死 Math.random）
+  const result = [...list];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
+ * 開始時間軸：洗牌、每人 5 張、山札頂一張翻開當初期札、隨機決定起始玩家。
+ * playerIds 依座位順序（時計回り）。
+ */
+export function dealTimeline(
+  songs: RoomSong[],
+  playerIds: string[],
+  random: () => number = Math.random,
+): { state: TimelineState; hands: Record<string, string[]> } {
+  const dated = timelineSongs(songs);
+  const need = playerIds.length * TIMELINE_HAND_SIZE + 1;
+  if (dated.length < need) {
+    throw new AppError(
+      `這個品牌有發行日的歌只有 ${dated.length} 首，${playerIds.length} 人需要 ${need} 首。`,
+      400,
+      'NOT_ENOUGH_DATED_SONGS',
+    );
+  }
+  const deck = shuffleWith(dated, random);
+  const hands: Record<string, string[]> = {};
+  const handCounts: Record<string, number> = {};
+  let cursor = 0;
+  for (const pid of playerIds) {
+    hands[pid] = deck.slice(cursor, cursor + TIMELINE_HAND_SIZE).map((s) => s.id);
+    handCounts[pid] = TIMELINE_HAND_SIZE;
+    cursor += TIMELINE_HAND_SIZE;
+  }
+  const initial = deck[cursor++];
+  return {
+    hands,
+    state: {
+      kind: 'timeline',
+      order: [...playerIds],
+      turnSeat: Math.min(playerIds.length - 1, Math.floor(random() * playerIds.length)),
+      deckCount: deck.length - cursor,
+      line: [initial.id],
+      handCounts,
+      winnerId: null,
+      lastResult: null,
+    },
+  };
+}
+
+/** 山札 = 有日期的歌 − 已翻開 − 所有人手牌（順序不重要，抽牌時隨機） */
+export function deckSongs(songs: RoomSong[], state: TimelineState, hands: Record<string, string[]>): RoomSong[] {
+  const used = new Set<string>(state.line);
+  for (const h of Object.values(hands)) for (const id of h) used.add(id);
+  return timelineSongs(songs).filter((s) => !used.has(s.id));
+}
+
+/**
+ * 輪到的人把手牌放進時間軸第 slot 個位置（0 = 最左、line.length = 最右）。
+ * 對：插入；錯：留在手牌、山札 > 0 罰抽一張。之後換下一位。先清空手牌者勝。
+ */
+export function applyPlace(
+  state: TimelineState,
+  songs: RoomSong[],
+  hands: Record<string, string[]>,
+  playerId: string,
+  songId: string,
+  slot: number,
+  random: () => number = Math.random,
+): { state: TimelineState; hands: Record<string, string[]>; correct: boolean; releaseDate: string } {
+  if (state.winnerId) throw new AppError('遊戲已經結束了。', 409, 'GAME_OVER');
+  if (state.order[state.turnSeat] !== playerId) throw new AppError('還沒輪到你。', 409, 'NOT_YOUR_TURN');
+  const hand = hands[playerId] ?? [];
+  if (!hand.includes(songId)) throw new AppError('這張牌不在你手上。', 400, 'NOT_IN_HAND');
+  if (!Number.isInteger(slot) || slot < 0 || slot > state.line.length) throw new AppError('位置不正確。', 400, 'BAD_SLOT');
+
+  const byId = new Map(songs.map((s) => [s.id, s]));
+  const song = byId.get(songId);
+  if (!song?.releaseDate) throw new AppError('這張牌沒有發行日。', 400, 'NOT_IN_HAND');
+  const date = song.releaseDate;
+  const prev = slot > 0 ? (byId.get(state.line[slot - 1])?.releaseDate ?? null) : null;
+  const next = slot < state.line.length ? (byId.get(state.line[slot])?.releaseDate ?? null) : null;
+  const correct = (prev === null || prev <= date) && (next === null || date <= next);
+
+  const newHands = { ...hands, [playerId]: [...hand] };
+  let line = state.line;
+  let drew = false;
+  if (correct) {
+    newHands[playerId] = hand.filter((id) => id !== songId);
+    line = [...state.line.slice(0, slot), songId, ...state.line.slice(slot)];
+  } else {
+    const deck = deckSongs(songs, state, hands);
+    if (deck.length > 0) {
+      const drawn = pickRandom(deck, random);
+      newHands[playerId] = [...hand, drawn.id];
+      drew = true;
+    }
+  }
+
+  const handCounts = Object.fromEntries(Object.entries(newHands).map(([pid, h]) => [pid, h.length]));
+  const winnerId = newHands[playerId].length === 0 ? playerId : null;
+  const nextState: TimelineState = {
+    ...state,
+    line,
+    handCounts,
+    deckCount: deckSongs(songs, { ...state, line }, newHands).length,
+    turnSeat: winnerId ? state.turnSeat : (state.turnSeat + 1) % state.order.length,
+    winnerId,
+    lastResult: { type: 'placed', playerId, songId, slot, correct, drew, releaseDate: date },
+  };
+  return { state: nextState, hands: newHands, correct, releaseDate: date };
 }

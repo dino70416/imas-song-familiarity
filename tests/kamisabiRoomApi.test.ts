@@ -324,3 +324,24 @@ describe('timeline: start / hand / place', () => {
     expect(s.line).toHaveLength(2);
   });
 });
+
+import { GET as ping } from '@/app/api/kamisabi/ping/route';
+
+describe('GET /api/kamisabi/ping', () => {
+  test('沒設 CRON_SECRET 時任何人可打；刪掉 24 小時前的房', async () => {
+    vi.stubEnv('CRON_SECRET', '');
+    const host = await openRoom();
+    const room = fake._rooms().find((r) => r.code === host.code)!;
+    room.updated_at = new Date(Date.now() - 25 * 3600 * 1000).toISOString();
+    const res = await ping(get('/api/kamisabi/ping'));
+    expect(await res.json()).toEqual({ ok: true, deleted: 1 });
+    expect(await fake.getRoomByCode(host.code)).toBeNull();
+    vi.unstubAllEnvs();
+  });
+  test('設了 CRON_SECRET 就要對 → 否則 401', async () => {
+    vi.stubEnv('CRON_SECRET', 'sekrit');
+    expect((await ping(get('/api/kamisabi/ping'))).status).toBe(401);
+    expect((await ping(get('/api/kamisabi/ping', 'sekrit'))).status).toBe(200);
+    vi.unstubAllEnvs();
+  });
+});

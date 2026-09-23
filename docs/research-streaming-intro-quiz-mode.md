@@ -1,6 +1,6 @@
 # 研究：「串流試聽 × 實體卡牌」猜歌模式可行性評估
 
-> **狀態：研究 / 提案（尚未實作）**
+> **狀態：研究 / 提案（尚未實作）** — 最新決定見 §3.5 簡化版設計 v2
 > 日期：2026-09-23
 > 起因：想新增一個模式：在後台建立播放清單 → 頁面播放 Apple Music 等串流的試聽版 → 現場玩家用 KAMISABI 之類的實體卡牌搶答，**不給選項**。
 > 參考：Lantis「KAMISABIとは」 <https://lantis.jp/topics/news/5907/>
@@ -98,6 +98,61 @@ https://itunes.apple.com/lookup?id=<上面回傳的 trackId>&country=jp
 3. 直接開 `previewUrl` 能在瀏覽器播放（Safari / Chrome / iOS 都試一下）。
 
 若 1 成立，本文件其餘設計都成立。
+
+---
+
+## 3.5 簡化版設計 v2（2026-09-23 決定）
+
+決定事項：
+1. **Apple Music 試聽 OK**：這個遊戲本來就是「聽副歌猜歌」，Apple 選段在副歌附近反而剛好。YouTube 不需要當第二音源。
+2. **連結由站長自己補進資料庫**：不做站內 iTunes 搜尋 UI，改成像 `youtubeIds` 一樣的資料欄位 + seed script。
+
+### 資料欄位：直接加在 `Song` 上
+
+```prisma
+model Song {
+  // ...既有欄位
+  appleTrackId String?   // iTunes/Apple Music 曲目 ID；null = 未處理，'' = 確認 Apple Music 沒有
+}
+```
+
+- 從 Apple Music 分享連結 `https://music.apple.com/jp/album/ready/1440851727?i=1440851730` 取 **`i=` 後面的數字** 就是 `trackId`。
+- 貼連結或貼 ID 都可以，script 用 regex 抓 `[?&]i=(\d+)` 或純數字。
+
+### 補資料的三條路（可並用）
+
+| 方式 | 做法 | 適合 |
+|---|---|---|
+| a. 手動對照表 | `scripts/seed-apple-ids.ts`，格式同 `seed-youtube-ids.ts`：`{ "曲名": "1440851730" }` | 少量、精確 |
+| b. 自動比對 | 同一支 script 加 `--auto`：對每首 `appleTrackId === null` 的歌打 `itunes.apple.com/search?term=<title>&country=jp&entity=song`，用 `scripts/lib/normalize.ts` 正規化曲名後完全相符且 `artistName` 含任一 `members`/`units` 名才寫入；否則列在報告留給人工 | 一次把大宗鋪掉（受 20 次/分限制，2,600 首約 2.5 小時，可分批跑） |
+| c. 站內編輯 | 若之後想在網頁上補，登入者在 `SongDetailModal` 加一格「Apple Music 連結」貼上即存（可限定 `ADMIN_USERNAMES`） | 零星補漏 |
+
+建議先做 a + b，c 之後看需求。
+
+### 播放清單：MVP 不需要新資料表
+
+既然連結掛在 `Song` 上，「清單」就只是一組 `songId`：
+- **MVP**：主持人頁 `/intro-quiz` 沿用現有品牌 / 偶像 / 組合 / 熟悉度篩選器選歌（只列 `appleTrackId` 非空者），按「開始」即可；順序亂數或依原順序。
+- **v2（若要存清單）**：再加第 4 節的 `QuizSet`，但 `QuizItem` 只剩 `songId` + `order`（Apple 資料都在 `Song`）。
+
+### 播放流程
+
+1. 主持人頁載入題目清單（只有 `songId`，**不含曲名**）。
+2. 每題：`GET /api/apple/preview?trackId=` → server 打 `itunes.apple.com/lookup`（`revalidate` 6 小時）→ 回 `previewUrl` + 封面 + `trackViewUrl`。
+3. `<audio>` 播放，UI 只顯示進度條；主持人可設「一次播 5 / 10 / 30 秒」、重播。
+4. 公佈答案：翻牌顯示曲名 / 演唱者 / 品牌 / 封面 + 「在 Apple Music 聆聽」+ courtesy 字樣；可直接開既有 `SongDetailModal`。
+5. 下一題。
+
+### 工時（簡化版）
+
+| 項目 | 估計 |
+|---|---|
+| migration + `seed-apple-ids.ts`（含 `--auto`） | 0.5 天 |
+| `/api/apple/preview` route + 測試 | 0.25 天 |
+| 主持人頁（選歌 → 播放 → 公佈 → 下一題） | 1 天 |
+| Header 入口、SW 排除、收尾 | 0.25 天 |
+
+合計約 **2 個工作天**，比原估的 3.5 天少。
 
 ---
 

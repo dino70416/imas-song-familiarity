@@ -3,6 +3,7 @@
 import React from 'react';
 import PreviewPlayer from './PreviewPlayer';
 import KamisabiCard from './KamisabiCard';
+import RoomEntry from './room/RoomEntry';
 import { useKamisabi } from './useKamisabi';
 import { getBrandColor, getBrandDisplayName } from '@/lib/themeUtils';
 import { BRAND_VALUES } from '@/lib/brandMap';
@@ -17,6 +18,7 @@ export default function KamisabiClient() {
   const {
     phase,
     error,
+    allSongs,
     brandCounts,
     selectedBrands,
     setSelectedBrands,
@@ -126,6 +128,7 @@ export default function KamisabiClient() {
             </button>
           </div>
         </div>
+        <RoomEntry allSongs={allSongs} brandCounts={brandCounts} />
       </div>
     );
   }

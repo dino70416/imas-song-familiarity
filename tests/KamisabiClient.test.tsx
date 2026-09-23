@@ -6,6 +6,7 @@ import KamisabiClient from '../components/kamisabi/KamisabiClient';
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: null, status: 'unauthenticated' }),
 }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 const mockSongs = [
   { id: '1', title: 'Song A', brand: 'music_ml', appleTrackId: '111', members: [{ name: '春日未来' }], units: [] },
@@ -42,9 +43,9 @@ test('KAMISABI 出題機流程：設定 → 播放（不露歌名）→ 公佈�
   await waitFor(() => expect(screen.getByText('開始出題')).toBeDefined());
   expect(screen.getByText(/共有 2 首歌曲可出題/)).toBeDefined();
   // 只顯示有歌的品牌：題庫只有 ML，其他品牌不出現
-  expect(screen.getByText(/ミリオンライブ！/)).toBeDefined();
+  expect(screen.getAllByText(/ミリオンライブ！/).length).toBeGreaterThan(0);
   expect(screen.queryByText(/シンデレラガールズ/)).toBeNull();
-  expect(screen.getByText('2 首')).toBeDefined();
+  expect(screen.getAllByText('2 首').length).toBeGreaterThan(0);
 
   // 關掉隨機順序，讓題目依題庫順序（Song A → Song B）出現
   fireEvent.click(screen.getByLabelText('隨機出題順序'));

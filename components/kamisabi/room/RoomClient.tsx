@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useRoom } from './useRoom';
 import { loadSession, saveSession, type RoomSession } from './roomStorage';
 import JoinForm from './JoinForm';
@@ -16,11 +16,8 @@ import { isIntroState, isTimelineState } from '@/lib/kamisabiRoom/types';
  */
 export default function RoomClient({ code }: { code: string }) {
   const { room, players, loading, error, refresh, toLocalTime } = useRoom(code);
-  const [session, setSession] = useState<RoomSession | null>(null);
-
-  useEffect(() => {
-    setSession(loadSession(code));
-  }, [code]);
+  // 首次 render 兩端都是 loading 畫面，session 不影響 SSR 標記，可以直接用 lazy initializer 讀 localStorage
+  const [session, setSession] = useState<RoomSession | null>(() => loadSession(code));
 
   const me = useMemo(() => (session ? players.find((p) => p.id === session.playerId) ?? null : null), [players, session]);
 

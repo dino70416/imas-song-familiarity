@@ -3,7 +3,7 @@ import { AppError, handleError } from '@/lib/errors';
 import { createIntroState, dealTimeline } from '@/lib/kamisabiRoom/logic';
 import { runRoomMutation } from '@/lib/kamisabiRoom/mutate';
 import { readJson, routeParams } from '@/lib/kamisabiRoom/http';
-import { MAX_PLAYERS, MIN_PLAYERS, ROOM_MODES, type RoomMode } from '@/lib/kamisabiRoom/types';
+import { MAX_PLAYERS, MIN_PLAYERS, ROOM_MODES, type IntroState, type RoomMode, type TimelineState } from '@/lib/kamisabiRoom/types';
 
 /**
  * POST /api/kamisabi/room/[code]/start  { mode }（房主）
@@ -16,7 +16,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ code: stri
     const mode = body.mode as RoomMode;
     if (!ROOM_MODES.includes(mode)) throw new AppError('請選擇玩法。', 400, 'BAD_MODE');
 
-    const state = await runRoomMutation(request, code, { hostOnly: true }, ({ room, players }) => {
+    const state = await runRoomMutation<IntroState | TimelineState>(request, code, { hostOnly: true }, ({ room, players }) => {
       if (room.status !== 'lobby') throw new AppError('遊戲已經開始了。', 409, 'ROOM_STARTED');
       if (players.length < MIN_PLAYERS) throw new AppError(`至少需要 ${MIN_PLAYERS} 位玩家。`, 400, 'NOT_ENOUGH_PLAYERS');
       if (players.length > MAX_PLAYERS) throw new AppError(`最多 ${MAX_PLAYERS} 位玩家。`, 400, 'TOO_MANY_PLAYERS');

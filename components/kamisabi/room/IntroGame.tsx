@@ -30,10 +30,11 @@ type Banner = { kind: 'ok' | 'bad' | 'info'; text: string };
 export default function IntroGame({ code, room, players, me, session, refresh, toLocalTime }: IntroGameProps) {
   const state = room.state as IntroState;
   const isKaruta = room.mode === 'karuta';
-  const audio = useSyncedAudio();
+  const { audioRef, unlocked, unlock, playing, scheduleAudio, scheduleSpeech, stop, onEnded } = useSyncedAudio();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<Banner | null>(null);
   const [flash, setFlash] = useState<{ songId: string; status: 'correct' | 'wrong' } | null>(null);
+  /** 伺服器回的可丟牌清單（お手つき 當下）；null 時退回用公開狀態推導 */
   const [discardCards, setDiscardCards] = useState<RoomSong[] | null>(null);
   const [audioNote, setAudioNote] = useState<string | null>(null);
 
@@ -46,38 +47,43 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
   const myPending = me ? state.pendingDiscards[me.id] ?? 0 : 0;
   const roundActive = !!state.currentSongId && !state.resolved;
   const remaining = room.songs.filter((s) => state.taken[s.id] === undefined).length;
+  // 待丟牌對話框：伺服器剛回的清單優先；重新整理後仍有待丟（公開狀態）也要打開
+  const dialogCards = discardCards ?? (me && myPending > 0 ? ownedBy(me.id) : null);
 
-  // 最新的 props 放 ref，讓「新回合」effect 只依賴 round key，不會每次輪詢都重排播放
-  const latest = useRef({ songById, toLocalTime, isKaruta, code, token: session?.token ?? null, audio });
-  latest.current = { songById, toLocalTime, isKaruta, code, token: session?.token ?? null, audio };
+  // 最新的 props 放 ref（在 effect 內更新，不在 render 時寫 ref），
+  // 讓「新回合」effect 只依賴 round key，不會每次輪詢都重排播放
+  const latest = useRef({ songById, toLocalTime, isKaruta, code, token: session?.token ?? null, scheduleAudio, scheduleSpeech, stop });
+  useEffect(() => {
+    latest.current = { songById, toLocalTime, isKaruta, code, token: session?.token ?? null, scheduleAudio, scheduleSpeech, stop };
+  });
 
   const roundKey = `${state.round}:${state.currentSongId ?? ''}`;
   useEffect(() => {
     if (!state.currentSongId || !state.startsAt) return;
-    const { songById, toLocalTime, isKaruta, code, token, audio } = latest.current;
+    const { songById, toLocalTime, isKaruta, code, token, scheduleAudio, scheduleSpeech, stop } = latest.current;
     const song = songById.get(state.currentSongId);
     if (!song) return;
     const at = toLocalTime(state.startsAt);
     let cancelled = false;
     setAudioNote(null);
     setFlash(null);
-    audio.stop();
+    stop();
 
     if (!isKaruta) {
       roomApi
         .preview(song.trackId)
-        .then((p) => { if (!cancelled) audio.scheduleAudio(p.previewUrl, at); })
+        .then((p) => { if (!cancelled) scheduleAudio(p.previewUrl, at); })
         .catch(() => { if (!cancelled) setAudioNote('這首歌的試聽暫時無法取得，請聽其他人的裝置。'); });
     } else {
       const url = ttsFileUrl(song.id);
       fetch(url, { method: 'HEAD' })
         .then(async (r) => {
           if (cancelled) return;
-          if (r.ok) { audio.scheduleAudio(url, at); return; }
+          if (r.ok) { scheduleAudio(url, at); return; }
           if (!token) { setAudioNote('這首歌還沒有朗讀檔。'); return; }
           try {
             const { text } = await roomApi.lyrics(code, token, song.id);
-            if (!cancelled && !audio.scheduleSpeech(text, at)) setAudioNote('此裝置無法朗讀，請聽其他人的裝置。');
+            if (!cancelled && !scheduleSpeech(text, at)) setAudioNote('此裝置無法朗讀，請聽其他人的裝置。');
           } catch {
             if (!cancelled) setAudioNote('這首歌還沒有朗讀檔。');
           }
@@ -89,13 +95,7 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
   }, [roundKey, state.startsAt]);
 
   // 有人取得 → 全員停止播放
-  const stopAudio = audio.stop;
-  useEffect(() => { if (state.resolved) stopAudio(); }, [state.resolved, stopAudio]);
-
-  // 重新整理後若還有待丟的牌，自動打開對話框
-  useEffect(() => {
-    if (me && myPending > 0 && !discardCards) setDiscardCards(ownedBy(me.id));
-  }, [me, myPending, discardCards, ownedBy]);
+  useEffect(() => { if (state.resolved) stop(); }, [state.resolved, stop]);
 
   // 綠框 / 紅框只閃一下
   useEffect(() => {
@@ -107,14 +107,14 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
   const claim = async (song: RoomSong) => {
     if (!session || !me || busy) return;
     if (!roundActive) { setMessage({ kind: 'info', text: '等房主出下一張再搶！' }); return; }
-    if (myPending > 0) { setMessage({ kind: 'bad', text: 'お手つき！請先選一張自己的牌丟回場上。' }); setDiscardCards(ownedBy(me.id)); return; }
+    if (myPending > 0) { setMessage({ kind: 'bad', text: 'お手つき！請先選一張自己的牌丟回場上。' }); return; }
     setBusy(true);
     try {
       const r = await roomApi.claim(code, session.token, song.id);
       if (r.result === 'correct') {
         setFlash({ songId: song.id, status: 'correct' });
         setMessage({ kind: 'ok', text: `取得『${song.title}』！${song.points === 2 ? '（シングル 2 分）' : ''}` });
-        audio.stop();
+        stop();
       } else {
         setFlash({ songId: song.id, status: 'wrong' });
         if (r.result === 'otetsuki') {
@@ -126,7 +126,6 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
       }
     } catch (e) {
       setMessage({ kind: 'bad', text: e instanceof RoomApiError ? e.message : '連線失敗，請再試一次。' });
-      if (e instanceof RoomApiError && e.code === 'DISCARD_PENDING') setDiscardCards(ownedBy(me.id));
     } finally {
       setBusy(false);
       await refresh();
@@ -182,18 +181,18 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
     return `${nameOf(r.playerId)} 把『${title}』丟回場上。`;
   };
 
-  const playStatus = audio.playing ? '🎵 播放中…' : roundActive ? '⏳ 準備播放…' : state.resolved ? '✅ 本回合結束' : '等待房主出題';
+  const playStatus = playing ? '🎵 播放中…' : roundActive ? '⏳ 準備播放…' : state.resolved ? '✅ 本回合結束' : '等待房主出題';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <audio ref={audio.audioRef} preload="auto" onEnded={audio.onEnded} data-testid="room-audio" />
+      <audio ref={audioRef} preload="auto" onEnded={onEnded} data-testid="room-audio" />
 
       <div className="kamisabi-room-panel" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontWeight: 700 }}>
           {isKaruta ? 'かるたモード' : 'イントロモード'} · 房間 {room.code} · 第 <strong style={{ fontSize: '22px', color: 'var(--accent-color)' }}>{state.round}</strong> 張 · 剩 {remaining} 張
         </div>
-        {!audio.unlocked ? (
-          <button type="button" className="btn btn-primary" onClick={audio.unlock} style={{ fontWeight: 900 }}>🔊 準備完成</button>
+        {!unlocked ? (
+          <button type="button" className="btn btn-primary" onClick={unlock} style={{ fontWeight: 900 }}>🔊 準備完成</button>
         ) : (
           <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{playStatus}</span>
         )}
@@ -238,7 +237,7 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
         })}
       </div>
 
-      {discardCards && (
+      {dialogCards && (
         <div
           role="dialog"
           aria-modal="true"
@@ -247,11 +246,11 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
           style={{ position: 'fixed', left: '16px', right: '16px', bottom: '16px', zIndex: 50, boxShadow: 'var(--shadow-lg)', border: '2px solid #ef4444' }}
         >
           <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 900, color: '#991b1b' }}>お手つき！選一張自己的牌丟回場上</h3>
-          {discardCards.length === 0 ? (
+          {dialogCards.length === 0 ? (
             <p style={{ margin: 0 }}>你手上沒有牌可丟。</p>
           ) : (
             <div className="kamisabi-hand">
-              {discardCards.map((c) => (
+              {dialogCards.map((c) => (
                 <KamisabiCard key={c.id} title={c.title} brand={c.brand} artworkUrl={c.artworkUrl} points={c.points} onClick={() => discard(c.id)} disabled={busy} />
               ))}
             </div>

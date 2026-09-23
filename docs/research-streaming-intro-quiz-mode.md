@@ -522,3 +522,35 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API ro
 1. 部署後 `prisma migrate deploy` 會套用新欄位（build script 已含）。
 2. 在 `scripts/seed-apple-ids.ts` 填歌牌收錄曲的 Apple Music 連結，`npm run seed:apple-ids`。
 3. 開 `/kamisabi`，選品牌、開始出題。
+
+---
+
+## 19. 線上房間模式實作紀錄
+
+| 檔案 | 說明 |
+|---|---|
+| `supabase/schema.sql` | §13 資料表、RLS、Realtime publication；在 Supabase SQL editor 執行一次 |
+| `lib/supabase/server.ts`、`lib/supabase/browser.ts` | service role（只給 API route）/ anon（瀏覽器讀 + 訂閱）client |
+| `lib/kamisabiRoom/types.ts` | Room / Player / Secret / IntroState / TimelineState |
+| `lib/kamisabiRoom/logic.ts` | 純函式：房號、搶牌、お手つき、計分、時間軸發牌 / 放牌 / 罰抽 |
+| `lib/kamisabiRoom/store.ts`、`auth.ts`、`mutate.ts`、`snapshot.ts`、`http.ts` | Supabase 讀寫、token 驗證、樂觀鎖重試、開房快照（Neon + 批次 iTunes 封面） |
+| `app/api/kamisabi/room/**` | §15 的 API（另加 `end`、`lyrics`） |
+| `app/api/kamisabi/ping/route.ts` + `vercel.json` | 每 3 天喚醒 Supabase、清 24 小時前的房 |
+| `components/kamisabi/room/*` | RoomEntry（/kamisabi 入口）、RoomClient、JoinForm、Lobby、IntroGame、TimelineGame、Results、useRoom、useSyncedAudio |
+| `app/kamisabi/room/[code]/page.tsx` | 房間頁 |
+| `lib/karutaTts.ts`、`scripts/karuta-lyrics.ts`、`scripts/gen-karuta-tts.ts` | かるた朗讀 SSML、歌詞對照表、Google TTS 產檔（`npm run gen:karuta-tts`） |
+| `public/kamisabi/tts/` | 朗讀檔 `<songId>.mp3` |
+| `docs/superpowers/plans/2026-09-23-kamisabi-room-mode.md` | 實作計畫（含每個 Task 的測試） |
+
+與 §13–§15 的差異：
+- `rooms.mode` 改為可為 null（開始時才選玩法）；多一支 `POST /end`（房主提前結束）與 `GET /lyrics`（Web Speech 備援只回當前題）。
+- 時間軸的山札不另外存：山札 = 有發行日的歌 − 時間軸 − 所有手牌，抽牌時隨機。
+- お手つき後未丟牌前不能再搶；全部取完且沒有待丟才結束。
+- 沒有 session 而房間已開始 → 觀戰模式（只能看，不能加入）。
+
+上線步驟：
+1. Supabase Dashboard → SQL editor 執行 `supabase/schema.sql`。
+2. Vercel 與本機 `.env` 設 `NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`（可選 `CRON_SECRET`）。
+3. `scripts/seed-apple-ids.ts` 補歌牌收錄曲的 Apple Music 連結 → `npm run seed:apple-ids`；時間軸模式另需 `releaseDate`（`npm run seed:dates`）。
+4. かるた：`scripts/karuta-lyrics.ts` 填副歌片段 → `GOOGLE_TTS_API_KEY=… npm run gen:karuta-tts` → commit `public/kamisabi/tts/*.mp3`。
+5. 開 `/kamisabi` → 線上房間 → 開房。

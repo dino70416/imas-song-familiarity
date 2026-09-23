@@ -35,8 +35,10 @@ export function useRoom(code: string) {
     }
   }, [code]);
 
+  // 初次載入（放進 callback 而不是同步呼叫，避免 effect 內直接 setState）
   useEffect(() => {
-    refresh();
+    const t = setTimeout(refresh, 0);
+    return () => clearTimeout(t);
   }, [refresh]);
 
   // Realtime：rooms 一列更新就整包換掉（payload.new 是完整列）

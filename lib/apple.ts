@@ -10,6 +10,8 @@ export const ITUNES_COUNTRY = 'jp';
  *   - 純數字："1659358253"
  *   - Apple Music 分享連結："https://music.apple.com/jp/album/ready-m-ster-version/1659357818?i=1659358253&uo=4"
  *     → 取 query 的 i= 參數（專輯 ID 在路徑上，曲目 ID 在 i=）
+ *   - 「分享歌曲」連結："https://music.apple.com/jp/song/raise-the-flag/1718726516"
+ *     → 曲目 ID 在路徑最後一段
  *   - 舊 iTunes 連結："https://itunes.apple.com/jp/album/id1659357818?i=1659358253"
  * 解析不到回傳 null。
  */
@@ -18,8 +20,11 @@ export function parseAppleTrackId(input: string | null | undefined): string | nu
   const trimmed = input.trim();
   if (/^\d{1,20}$/.test(trimmed)) return trimmed;
 
-  const match = trimmed.match(/[?&]i=(\d{1,20})(?:[&#]|$)/);
-  if (match) return match[1];
+  const query = trimmed.match(/[?&]i=(\d{1,20})(?:[&#]|$)/);
+  if (query) return query[1];
+
+  const songPath = trimmed.match(/\/song\/(?:[^/?#]+\/)?(\d{1,20})(?:[/?#]|$)/);
+  if (songPath) return songPath[1];
 
   return null;
 }

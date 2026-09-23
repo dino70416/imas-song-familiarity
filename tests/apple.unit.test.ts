@@ -14,6 +14,12 @@ describe('parseAppleTrackId', () => {
     expect(parseAppleTrackId('https://music.apple.com/jp/album/fighting-my-way/1744084121?i=1744084126')).toBe('1744084126');
   });
 
+  test('「分享歌曲」連結：曲目 ID 在路徑最後', () => {
+    expect(parseAppleTrackId('https://music.apple.com/jp/song/raise-the-flag/1718726516')).toBe('1718726516');
+    expect(parseAppleTrackId('https://music.apple.com/jp/song/1718726516')).toBe('1718726516');
+    expect(parseAppleTrackId('https://music.apple.com/jp/song/raise-the-flag/1718726516?l=en')).toBe('1718726516');
+  });
+
   test('舊 iTunes 連結也能解析', () => {
     expect(parseAppleTrackId('https://itunes.apple.com/jp/album/id558731418?i=558731424')).toBe('558731424');
   });

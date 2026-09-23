@@ -11,9 +11,11 @@ const prisma = new PrismaClient();
  *           也可以用 slug（例如 "ml/12087"）避免同名歌曲撞到
  *   value = Apple Music 分享連結 或 純數字 trackId 或 ''（確認 Apple Music 沒有這首）
  *
- * Apple Music 連結範例：
+ * Apple Music 連結範例（兩種都可以）：
  *   https://music.apple.com/jp/album/ready-m-ster-version/1659357818?i=1659358253
  *   → 路徑上的 1659357818 是專輯 ID，?i= 後面的 1659358253 才是曲目 ID（script 會自動取 i=）
+ *   https://music.apple.com/jp/song/raise-the-flag/1718726516
+ *   → 「分享歌曲」產生的格式，最後一段就是曲目 ID
  *
  * 同一首歌通常會出現在多張專輯（單曲 / BEST 盤），挑哪個版本都可以，
  * 但請優先挑 Apple Music 上「可串流」的那張（能在 App 內完整播放的即是）。

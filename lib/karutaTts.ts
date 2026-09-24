@@ -2,8 +2,8 @@
  * かるたモード朗讀（Google Cloud TTS 離線產檔）相關的純函式。
  * 歌詞文字只存在 scripts/karuta-lyrics.ts，畫面上不顯示。
  */
-export const KARUTA_TTS_VOICE = 'ja-JP-Neural2-B'; // 女聲；男聲用 ja-JP-Neural2-C
-export const KARUTA_TTS_RATE = 0.95;
+export const KARUTA_TTS_VOICE = 'ja-JP-Neural2-C'; // 男聲；女聲用 ja-JP-Neural2-B
+export const KARUTA_TTS_RATE = 0.9;
 export const KARUTA_TTS_BREAK = '600ms';
 
 function escapeXml(s: string): string {

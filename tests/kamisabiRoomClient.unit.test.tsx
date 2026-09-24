@@ -98,6 +98,14 @@ describe('useRoom（沒有 Supabase 時用輪詢）', () => {
       });
       expect(result.current.room?.version).toBe(4);
       expect(result.current.room?.songs).toEqual(songs);
+      // 房主按「結束遊戲」只改 status，state 沒變動也會被 TOAST 省略 → 沿用手上的 state，結算頁才讀得到 kind
+      act(() => {
+        handlers.rooms({ new: { id: 'r1', code: 'ABCDE', mode: 'intro', status: 'finished', brand: 'music_ml', songs: 'unchanged-toast', state: 'unchanged-toast', version: 5, updated_at: '' } });
+      });
+      expect(result.current.room?.version).toBe(5);
+      expect(result.current.room?.status).toBe('finished');
+      expect(result.current.room?.state).toEqual({ kind: 'intro', round: 3 });
+      expect(result.current.room?.songs).toEqual(songs);
     } finally {
       vi.mocked(getSupabaseBrowser).mockReturnValue(null);
     }

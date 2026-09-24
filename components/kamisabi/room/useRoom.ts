@@ -60,10 +60,12 @@ export function useRoom(code: string) {
         const next = payload.new as RoomRow;
         setRoom((prev) => {
           if (prev && prev.version >= next.version) return prev;
-          // songs 開房後不會再變。jsonb 一大（幾十首）Postgres 會 TOAST 另存，UPDATE 沒改到它時
-          // WAL／Realtime 事件就不帶這欄（會缺、null 或 'unchanged-toast'），這時沿用手上的那份。
+          // jsonb 一大（幾十首歌、幾十張 taken）Postgres 會 TOAST 另存，UPDATE 沒改到那欄時
+          // WAL／Realtime 事件就不帶它（缺、null 或 'unchanged-toast'）：songs 開房後不變，
+          // state 在「結束遊戲」只改 status 時也不變，這兩欄形狀不對就沿用手上的那份。
           const songs = Array.isArray(next.songs) ? next.songs : prev?.songs ?? [];
-          return { id: next.id, code: next.code, mode: next.mode, status: next.status, brand: next.brand, songs, state: next.state, version: next.version };
+          const state = next.state && typeof next.state === 'object' ? next.state : prev?.state ?? {};
+          return { id: next.id, code: next.code, mode: next.mode, status: next.status, brand: next.brand, songs, state, version: next.version };
         });
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_players', filter: `room_id=eq.${roomId}` }, () => {

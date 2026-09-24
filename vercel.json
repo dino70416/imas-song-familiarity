@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/kamisabi/ping", "schedule": "0 3 */3 * *" }
+  ]
+}

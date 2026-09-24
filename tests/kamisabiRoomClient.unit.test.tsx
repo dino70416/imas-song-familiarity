@@ -75,6 +75,34 @@ describe('useRoom（沒有 Supabase 時用輪詢）', () => {
     expect(result.current.room?.version).toBe(2);
   });
 
+  test('Realtime UPDATE 事件沒帶 songs（jsonb 太大被 TOAST 省略）→ 沿用手上的 songs，不會變 undefined', async () => {
+    const handlers: Record<string, (p: { new: unknown }) => void> = {};
+    const fakeCh = {
+      on: (_t: string, f: { table: string }, cb: (p: { new: unknown }) => void) => { handlers[f.table] = cb; return fakeCh; },
+      subscribe: (cb: (s: string) => void) => { cb('SUBSCRIBED'); return fakeCh; },
+    };
+    vi.mocked(getSupabaseBrowser).mockReturnValue({ channel: () => fakeCh, removeChannel: async () => 'ok' } as unknown as ReturnType<typeof getSupabaseBrowser>);
+    const songs = [{ id: 'a', title: 'Song a', brand: 'music_ml', trackId: 'ta', artworkUrl: null, releaseDate: null, points: 1 }];
+    const snapshot = { room: { id: 'r1', code: 'ABCDE', mode: 'intro', status: 'playing', brand: 'music_ml', songs, state: { kind: 'intro', round: 1 }, version: 2 }, players: [], serverNow: Date.now() };
+    vi.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify(snapshot), { status: 200 }));
+    try {
+      const { result } = renderHook(() => useRoom('ABCDE'));
+      await waitFor(() => expect(result.current.room?.version).toBe(2));
+      act(() => {
+        handlers.rooms({ new: { id: 'r1', code: 'ABCDE', mode: 'intro', status: 'playing', brand: 'music_ml', songs: 'unchanged-toast', state: { kind: 'intro', round: 2 }, version: 3, updated_at: '' } });
+      });
+      expect(result.current.room?.version).toBe(3);
+      expect(result.current.room?.songs).toEqual(songs);
+      act(() => {
+        handlers.rooms({ new: { id: 'r1', code: 'ABCDE', mode: 'intro', status: 'playing', brand: 'music_ml', state: { kind: 'intro', round: 3 }, version: 4, updated_at: '' } });
+      });
+      expect(result.current.room?.version).toBe(4);
+      expect(result.current.room?.songs).toEqual(songs);
+    } finally {
+      vi.mocked(getSupabaseBrowser).mockReturnValue(null);
+    }
+  });
+
   test('Realtime 訂閱成功後仍然每 4 秒輪詢（訂閱成功不代表事件一定會到）', async () => {
     vi.useFakeTimers();
     const fakeCh = { on: () => fakeCh, subscribe: (cb: (s: string) => void) => { cb('SUBSCRIBED'); return fakeCh; } };

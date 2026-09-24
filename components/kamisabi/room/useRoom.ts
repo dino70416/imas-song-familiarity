@@ -58,9 +58,13 @@ export function useRoom(code: string) {
       .channel(`kamisabi-room:${roomId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
         const next = payload.new as RoomRow;
-        setRoom((prev) => (prev && prev.version >= next.version ? prev : {
-          id: next.id, code: next.code, mode: next.mode, status: next.status, brand: next.brand, songs: next.songs, state: next.state, version: next.version,
-        }));
+        setRoom((prev) => {
+          if (prev && prev.version >= next.version) return prev;
+          // songs 開房後不會再變。jsonb 一大（幾十首）Postgres 會 TOAST 另存，UPDATE 沒改到它時
+          // WAL／Realtime 事件就不帶這欄（會缺、null 或 'unchanged-toast'），這時沿用手上的那份。
+          const songs = Array.isArray(next.songs) ? next.songs : prev?.songs ?? [];
+          return { id: next.id, code: next.code, mode: next.mode, status: next.status, brand: next.brand, songs, state: next.state, version: next.version };
+        });
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_players', filter: `room_id=eq.${roomId}` }, () => {
         refresh();

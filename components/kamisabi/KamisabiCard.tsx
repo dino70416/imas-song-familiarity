@@ -39,21 +39,25 @@ export default function KamisabiCard({
 
   const body = (
     <>
-      <div className="kamisabi-card-cover">
-        {artworkUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={artworkUrl} alt="" width={600} height={600} loading="lazy" />
-        ) : (
-          <span aria-hidden="true">♪</span>
-        )}
-      </div>
-      <div className="kamisabi-card-title">{title}</div>
-      <div className="kamisabi-card-brand">{getKamisabiBrandName(brand)}</div>
-      <div className="kamisabi-card-rule" />
-      <div className="kamisabi-card-controls" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M11 6v12L2 12zM22 6v12l-9-6z" /></svg>
-        <svg viewBox="0 0 24 24" className="is-play"><path d="M6 4v16l14-8z" /></svg>
-        <svg viewBox="0 0 24 24"><path d="M13 6v12l9-6zM2 6v12l9-6z" /></svg>
+      {/* 內距放在 body 用 cqw（相對卡片自身寬度）；卡片本身不用百分比 padding，
+          否則在寬的 flex 容器（時間軸、手牌）裡百分比會相對父容器，把內容壓成 0 */}
+      <div className="kamisabi-card-body">
+        <div className="kamisabi-card-cover">
+          {artworkUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={artworkUrl} alt="" width={600} height={600} loading="lazy" />
+          ) : (
+            <span aria-hidden="true">♪</span>
+          )}
+        </div>
+        <div className="kamisabi-card-title">{title}</div>
+        <div className="kamisabi-card-brand">{getKamisabiBrandName(brand)}</div>
+        <div className="kamisabi-card-rule" />
+        <div className="kamisabi-card-controls" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M11 6v12L2 12zM22 6v12l-9-6z" /></svg>
+          <svg viewBox="0 0 24 24" className="is-play"><path d="M6 4v16l14-8z" /></svg>
+          <svg viewBox="0 0 24 24"><path d="M13 6v12l9-6zM2 6v12l9-6z" /></svg>
+        </div>
       </div>
       {points === 2 && <span className="kamisabi-card-points">★2pt</span>}
       {takenBy && <span className="kamisabi-card-taken-tag">{takenBy}</span>}

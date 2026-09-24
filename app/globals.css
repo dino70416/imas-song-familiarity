@@ -1905,7 +1905,7 @@ header h1 {
   width: 100%;
   max-width: 200px;
   border-radius: 10px;
-  padding: 7% 7% 5%;
+  padding: 0; /* 內距在 .kamisabi-card-body（cqw）；百分比 padding 會相對父容器，在寬的 flex 列裡會把內容壓成 0 */
   background: var(--kamisabi-holo);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
@@ -1915,6 +1915,13 @@ header h1 {
   flex-direction: column;
   flex-shrink: 0;
   container-type: inline-size;
+}
+.kamisabi-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 7cqw 7cqw 5cqw; /* 相對卡片自身寬度，任何容器裡比例都一樣 */
 }
 .kamisabi-card.is-reveal {
   max-width: 220px;

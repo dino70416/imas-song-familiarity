@@ -18,6 +18,7 @@
     "seed:apple-ids": "ts-node --project scripts/tsconfig.json scripts/seed-apple-ids.ts",
     "gen:karuta-tts": "ts-node --project scripts/tsconfig.json scripts/gen-karuta-tts.ts",
     "decode:card-qr": "ts-node --project scripts/tsconfig.json scripts/decode-card-qr.ts",
+    "seed:card-dates": "ts-node --project scripts/tsconfig.json scripts/seed-card-dates.ts",
     "sync:idol-images": "ts-node --project scripts/tsconfig.json scripts/sync-idol-images.ts",
     "fix:876": "ts-node --project scripts/tsconfig.json scripts/fix-876.ts",
     "test": "vitest run",

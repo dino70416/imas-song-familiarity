@@ -10,6 +10,11 @@ describe('buildKarutaSsml', () => {
   test('也接受「／」當分行', () => {
     expect(buildKarutaSsml('ラララ／ルルル')).toBe('<speak>ラララ<break time="600ms"/>ルルル</speak>');
   });
+  test('漢字｛よみ｝→ <sub alias>（読み札的振假名）；∞ 也可以標', () => {
+    expect(buildKarutaSsml('この世の道理｛ことわり｝か\n解けない∞｛むげん｝が')).toBe(
+      '<speak>この世の<sub alias="ことわり">道理</sub>か<break time="600ms"/>解けない<sub alias="むげん">∞</sub>が</speak>',
+    );
+  });
 });
 
 test('ttsFileUrl', () => {

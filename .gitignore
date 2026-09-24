@@ -47,3 +47,6 @@ next-env.d.ts
 /data/
 
 
+
+# 歌牌照片（本機用，不進 git）
+/kamisabi/

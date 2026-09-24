@@ -10,13 +10,21 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/** 読み札的振假名：漢字（或 ∞）後面接「｛よみ｝」→ SSML <sub alias="よみ">漢字</sub> */
+const RUBY = /([一-鿿々〆ヶ∞]+)｛([^｝]+)｝/g;
+
+function toSsmlLine(line: string): string {
+  // 先跳脫再套 <sub>；讀音只會是假名，不含需要跳脫的字元
+  return escapeXml(line).replace(RUBY, (_m, base: string, yomi: string) => `<sub alias="${yomi}">${base}</sub>`);
+}
+
 /** 每行之間加停頓，讓朗讀有かるた「読み手」的節奏 */
 export function buildKarutaSsml(lyrics: string): string {
   const lines = lyrics
     .split(/\r?\n|／/)
     .map((l) => l.trim())
     .filter(Boolean)
-    .map(escapeXml);
+    .map(toSsmlLine);
   return `<speak>${lines.join(`<break time="${KARUTA_TTS_BREAK}"/>`)}</speak>`;
 }
 

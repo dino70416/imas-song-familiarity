@@ -46,7 +46,14 @@ export default function IntroGame({ code, room, players, me, session, refresh, t
   const [now, setNow] = useState(() => Date.now());
 
   const songById = useMemo(() => new Map(room.songs.map((s) => [s.id, s])), [room.songs]);
-  const sortedSongs = useMemo(() => [...room.songs].sort((a, b) => a.title.localeCompare(b.title, 'ja')), [room.songs]);
+  // 場上排列：依伺服器每局洗好的 layout（所有人一致）；舊房間沒有 layout 就退回曲名排序
+  const layout = state.layout;
+  const sortedSongs = useMemo(() => {
+    const byTitle = (a: RoomSong, b: RoomSong) => a.title.localeCompare(b.title, 'ja');
+    if (!layout || layout.length === 0) return [...room.songs].sort(byTitle);
+    const pos = new Map(layout.map((id, i) => [id, i]));
+    return [...room.songs].sort((a, b) => (pos.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (pos.get(b.id) ?? Number.MAX_SAFE_INTEGER) || byTitle(a, b));
+  }, [room.songs, layout]);
   const nameOf = useCallback((id: string) => players.find((p) => p.id === id)?.name ?? '？', [players]);
   const ownedBy = useCallback((playerId: string) => room.songs.filter((s) => state.taken[s.id] === playerId), [room.songs, state.taken]);
 

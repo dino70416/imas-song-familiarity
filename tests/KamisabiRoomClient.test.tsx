@@ -30,7 +30,7 @@ function makeDoc() {
     {
       method: 'POST', match: /\/start$/, handle: (body) => {
         const b = body as { mode: 'intro' | 'karuta' | 'timeline' };
-        doc.room = { ...doc.room, mode: b.mode, status: 'playing', version: 1, state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, resolvedAt: null, ready: [], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
+        doc.room = { ...doc.room, mode: b.mode, status: 'playing', version: 1, state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, resolvedAt: null, ready: [], layout: [], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
         return { json: { state: doc.room.state } };
       },
     },
@@ -97,7 +97,7 @@ describe('RoomClient', () => {
 
   test('遊戲已開始且沒有 session → 觀戰模式，不會白屏', async () => {
     const { doc } = makeDoc();
-    doc.room = { ...doc.room, mode: 'intro', status: 'playing', state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, resolvedAt: null, ready: [], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
+    doc.room = { ...doc.room, mode: 'intro', status: 'playing', state: { kind: 'intro', round: 0, currentSongId: null, startsAt: null, resolved: false, resolvedAt: null, ready: [], layout: [], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null } };
     render(<RoomClient code="ABCDE" />);
     await waitFor(() => expect(screen.getByText(/觀戰模式/)).toBeDefined());
     expect(screen.queryByLabelText('你的名字')).toBeNull();
@@ -105,7 +105,7 @@ describe('RoomClient', () => {
 
   test('結束 → 結算排名；找不到房間 → 錯誤訊息與回首頁連結', async () => {
     const { doc } = makeDoc();
-    doc.room = { ...doc.room, mode: 'intro', status: 'finished', state: { kind: 'intro', round: 2, currentSongId: null, startsAt: null, resolved: true, resolvedAt: null, ready: ['p1', 'p2'], taken: { a: 'p1', b: 'p2' }, scores: { p1: 1, p2: 1 }, pendingDiscards: {}, lastResult: null } };
+    doc.room = { ...doc.room, mode: 'intro', status: 'finished', state: { kind: 'intro', round: 2, currentSongId: null, startsAt: null, resolved: true, resolvedAt: null, ready: ['p1', 'p2'], layout: [], taken: { a: 'p1', b: 'p2' }, scores: { p1: 1, p2: 1 }, pendingDiscards: {}, lastResult: null } };
     doc.players = [host, { id: 'p2', room_id: 'r1', name: '未来', seat: 1, is_host: false, joined_at: '' }];
     const { unmount } = render(<RoomClient code="ABCDE" />);
     await waitFor(() => expect(screen.getByText(/遊戲結束/)).toBeDefined());

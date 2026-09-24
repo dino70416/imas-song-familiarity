@@ -249,11 +249,22 @@ describe('リリースタイムライン', () => {
 });
 
 describe('準備完成與自動換題', () => {
-  test('createIntroState：ready 空、resolvedAt null', () => {
+  test('createIntroState：ready 空、resolvedAt null、沒給歌時 layout 空', () => {
     const s = createIntroState();
     expect(s.ready).toEqual([]);
     expect(s.resolvedAt).toBeNull();
     expect(s.currentSongId).toBeNull();
+    expect(s.layout).toEqual([]);
+  });
+
+  test('createIntroState：每局把歌牌位置洗牌（layout 是所有 songId 的排列，random 固定時可重現）', () => {
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    // random 固定 0：Fisher–Yates 每步都跟第 0 格交換 → [b, c, d, e, a]（固定 0.99 會每步跟自己交換，等於沒洗）
+    const s1 = createIntroState(ids, () => 0);
+    expect([...s1.layout].sort()).toEqual(ids);
+    expect(s1.layout).toEqual(['b', 'c', 'd', 'e', 'a']);
+    expect(createIntroState(ids, () => 0).layout).toEqual(s1.layout);
+    expect(ids).toEqual(['a', 'b', 'c', 'd', 'e']); // 不改原陣列
   });
 
   test('markReady 可重複呼叫；allReady 要所有玩家都按過', () => {

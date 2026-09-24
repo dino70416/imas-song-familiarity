@@ -15,7 +15,7 @@ const players = [host, guest];
 function roomWith(state: Partial<IntroState>, mode: 'intro' | 'karuta' = 'intro'): PublicRoom {
   return {
     id: 'r1', code: 'ABCDE', mode, status: 'playing', brand: 'music_ml', songs: SONGS, version: 3,
-    state: { kind: 'intro', round: 1, currentSongId: 'a', startsAt: new Date(Date.now() + 50).toISOString(), resolved: false, resolvedAt: null, ready: ['p1', 'p2'], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null, ...state },
+    state: { kind: 'intro', round: 1, currentSongId: 'a', startsAt: new Date(Date.now() + 50).toISOString(), resolved: false, resolvedAt: null, ready: ['p1', 'p2'], layout: [], taken: {}, scores: {}, pendingDiscards: {}, lastResult: null, ...state },
   };
 }
 const session = { playerId: 'p2', token: 'tok', name: '未来' };
@@ -211,6 +211,17 @@ describe('IntroGame', () => {
     expect((screen.getByRole('button', { name: /Song b/ }) as HTMLButtonElement).disabled).toBe(true);
     release();
     await waitFor(() => expect((screen.getByRole('button', { name: /Song b/ }) as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  test('歌牌依 state.layout 的順序排列（每局洗牌、所有人一致）；沒有 layout 時退回曲名排序', () => {
+    mockRoomFetch([{ match: /\/api\/apple\/preview/, handle: () => ({ json: preview }) }]);
+    const { unmount } = render(<IntroGame code="ABCDE" room={roomWith({ layout: ['c', 'a', 'b'] })} players={players} me={guest} session={session} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    const titles = () => within(screen.getByTestId('card-grid')).getAllByRole('button').map((b) => b.textContent?.match(/Song [abc]/)?.[0]);
+    expect(titles()).toEqual(['Song c', 'Song a', 'Song b']);
+    unmount();
+
+    render(<IntroGame code="ABCDE" room={roomWith({ layout: [] })} players={players} me={guest} session={session} refresh={vi.fn().mockResolvedValue(undefined)} toLocalTime={toLocalTime} />);
+    expect(titles()).toEqual(['Song a', 'Song b', 'Song c']);
   });
 
   test('重新整理後若仍有待丟的牌，自動打開丟牌對話框', async () => {

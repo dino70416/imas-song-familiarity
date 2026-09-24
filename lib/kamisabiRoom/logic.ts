@@ -23,7 +23,8 @@ function pickRandom<T>(list: T[], random: () => number): T {
 
 // ---------------- イントロ / かるた ----------------
 
-export function createIntroState(): IntroState {
+/** 開始搶牌模式：場上歌牌位置每局洗牌（layout），所有人看到同一種排列 */
+export function createIntroState(songIds: string[] = [], random: () => number = Math.random): IntroState {
   return {
     kind: 'intro',
     round: 0,
@@ -32,6 +33,7 @@ export function createIntroState(): IntroState {
     resolved: false,
     resolvedAt: null,
     ready: [],
+    layout: shuffleWith(songIds, random),
     taken: {},
     scores: {},
     pendingDiscards: {},

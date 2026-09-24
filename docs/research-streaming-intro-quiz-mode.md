@@ -548,7 +548,7 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...                          # 只在 API ro
 - 時間軸的山札不另外存：山札 = 有發行日的歌 − 時間軸 − 所有手牌，抽牌時隨機。
 - お手つき後未丟牌前不能再搶；全部取完且沒有待丟才結束。
 - 沒有 session 而房間已開始 → 觀戰模式（只能看，不能加入）。
-- （2026-09-24）搶牌模式全自動換題：`IntroState` 多 `ready[]`、`resolvedAt`；`POST /ready` 記錄準備；`/next` 第一張限房主且需全員 ready，之後任何玩家到 `nextCardDueAt`（取得後 `AUTO_NEXT_DELAY_MS` 5 秒 / 沒人答對 `ROUND_TIMEOUT_MS` 35 秒）即可觸發，帶 `round` 不會跳張。大廳按鈕改名「進入遊戲」，遊戲畫面全員 ready 後房主才看到「遊戲開始」。
+- （2026-09-24）搶牌模式全自動換題：`IntroState` 多 `ready[]`、`resolvedAt`；`POST /ready` 記錄準備；`/next` 第一張限房主且需全員 ready，之後任何玩家到 `nextCardDueAt`（取得後 `AUTO_NEXT_DELAY_MS` 5 秒 / 沒人答對 `ROUND_TIMEOUT_MS` 35 秒）即可觸發，帶 `round` 不會跳張。大廳按鈕改名「進入遊戲」，遊戲畫面全員 ready 後房主才看到「遊戲開始」。場上歌牌位置每局洗牌（`IntroState.layout`，開始時由伺服器決定，所有人一致），不再依曲名排序。
 
 上線步驟：
 1. Supabase Dashboard → SQL editor 執行 `supabase/schema.sql`。

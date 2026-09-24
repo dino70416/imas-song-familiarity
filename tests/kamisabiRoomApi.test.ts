@@ -182,6 +182,8 @@ describe('start / next / claim / discard / end', () => {
     const room = await fake.getRoomByCode(host.code);
     expect(room).toMatchObject({ status: 'playing', mode: 'karuta', version: 1 });
     expect((room!.state as IntroState).kind).toBe('intro');
+    // 歌牌位置每局洗牌：layout 是全部 songId 的排列
+    expect([...(room!.state as IntroState).layout].sort()).toEqual(SONGS.map((s) => s.id).sort());
     const again = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, host.token), ctx(host.code));
     expect((await again.json()).code).toBe('ROOM_STARTED');
   });

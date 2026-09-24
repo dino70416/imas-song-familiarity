@@ -26,7 +26,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ code: stri
         const dealt = dealTimeline(room.songs, order);
         return { patch: { mode, status: 'playing' as const, state: dealt.state }, hands: dealt.hands, result: dealt.state };
       }
-      const intro = createIntroState();
+      const intro = createIntroState(room.songs.map((s) => s.id));
       return { patch: { mode, status: 'playing' as const, state: intro }, result: intro };
     });
 

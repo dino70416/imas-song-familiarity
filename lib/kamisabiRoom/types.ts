@@ -51,6 +51,7 @@ export interface IntroState {
   resolved: boolean;                     // 本回合已有人取得
   resolvedAt: string | null;             // ISO；有人取得的時間，自動換題以此計時
   ready: string[];                       // 按過「準備完成」的 playerId；全員到齊房主才能開始
+  layout: string[];                      // 場上歌牌的排列（songId 順序）；開始時洗牌，所有人一致
   taken: Record<string, string>;         // songId → playerId
   scores: Record<string, number>;        // playerId → points
   pendingDiscards: Record<string, number>; // playerId → お手つき後還沒丟的張數

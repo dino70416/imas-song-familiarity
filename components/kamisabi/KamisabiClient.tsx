@@ -14,7 +14,7 @@ import { BrandIcon } from '@/components/BrandIcon';
  * 網頁只播 Apple Music 30 秒試聽、不給選項；主持人按「公佈答案」翻出仿實體歌牌。
  * 搶牌與計分在桌上用實體歌牌進行。
  */
-export default function KamisabiClient() {
+export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: boolean }) {
   const {
     phase,
     error,
@@ -128,7 +128,7 @@ export default function KamisabiClient() {
             </button>
           </div>
         </div>
-        <RoomEntry allSongs={allSongs} brandCounts={brandCounts} />
+        {canHostRoom && <RoomEntry allSongs={allSongs} brandCounts={brandCounts} />}
       </div>
     );
   }

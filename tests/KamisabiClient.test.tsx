@@ -79,6 +79,16 @@ test('KAMISABI 出題機流程：設定 → 播放（不露歌名）→ 公佈�
   await waitFor(() => expect(screen.getByText('出題完畢！')).toBeDefined());
 });
 
+test('線上房間區塊只給白名單帳號看（canHostRoom）；預設隱藏', async () => {
+  const { unmount } = render(<KamisabiClient />);
+  await waitFor(() => expect(screen.getAllByText('2 首').length).toBeGreaterThan(0));
+  expect(screen.queryByText('🌐 線上房間')).toBeNull();
+  unmount();
+
+  render(<KamisabiClient canHostRoom />);
+  await waitFor(() => expect(screen.getByText('🌐 線上房間')).toBeDefined());
+});
+
 test('試聽取不到時可以跳到下一題', async () => {
   (global.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: string) => {
     if (input === '/api/songs/kamisabi') {

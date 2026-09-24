@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { AppError, handleError } from '@/lib/errors';
 import { rateLimit } from '@/lib/rateLimit';
 import { BRAND_VALUES } from '@/lib/brandMap';
+import { canHostRoom } from '@/lib/kamisabiRoom/hosts';
 import { generateRoomCode } from '@/lib/kamisabiRoom/logic';
 import { buildRoomSongs } from '@/lib/kamisabiRoom/snapshot';
 import { generateToken } from '@/lib/kamisabiRoom/auth';
@@ -10,10 +13,13 @@ import * as store from '@/lib/kamisabiRoom/store';
 
 /**
  * POST /api/kamisabi/room  { name, brand, singles?: string[] }
- * 開房：快照 Neon 曲目 → rooms / room_players（房主 seat 0）/ room_secrets → 回 { code, roomId, playerId, token }
+ * 開房：需登入且帳號在 KAMISABI_ROOM_HOSTS 白名單 →
+ * 快照 Neon 曲目 → rooms / room_players（房主 seat 0）/ room_secrets → 回 { code, roomId, playerId, token }
  */
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!canHostRoom(session?.user?.username)) throw new AppError('目前只有指定帳號可以開房。', 403, 'NOT_ALLOWED');
     if (!rateLimit(`kamisabi-room-create:${clientIp(request)}`, 5, 1, 12000)) {
       throw new AppError('開房太頻繁，請稍後再試。', 429, 'RATE_LIMITED');
     }

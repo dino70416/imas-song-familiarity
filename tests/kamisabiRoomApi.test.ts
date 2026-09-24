@@ -10,7 +10,11 @@ vi.mock('@/lib/kamisabiRoom/store', async () => {
 
 const buildRoomSongs = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/kamisabiRoom/snapshot', () => ({ buildRoomSongs: (...args: unknown[]) => buildRoomSongs(...args) }));
+// 開房要登入且在 KAMISABI_ROOM_HOSTS 白名單：mock next-auth 的 session，authOptions 不需要真的 Prisma
+vi.mock('next-auth', () => ({ getServerSession: vi.fn() }));
+vi.mock('@/lib/auth', () => ({ authOptions: {} }));
 
+import { getServerSession } from 'next-auth';
 import * as store from '@/lib/kamisabiRoom/store';
 import { resetRateLimits } from '@/lib/rateLimit';
 import { POST as createRoom } from '@/app/api/kamisabi/room/route';
@@ -56,6 +60,8 @@ beforeEach(() => {
   fake.reset();
   resetRateLimits();
   buildRoomSongs.mockReset().mockResolvedValue(SONGS);
+  process.env.KAMISABI_ROOM_HOSTS = 'host';
+  vi.mocked(getServerSession).mockReset().mockResolvedValue({ user: { username: 'host' } } as never);
   clockOffset = 0;
   vi.spyOn(Date, 'now').mockImplementation(() => realNow() + clockOffset);
 });
@@ -64,6 +70,21 @@ afterEach(() => {
 });
 
 describe('POST /api/kamisabi/room', () => {
+  test('開房需要登入且帳號在 KAMISABI_ROOM_HOSTS 白名單；名單為空一律 403', async () => {
+    vi.mocked(getServerSession).mockResolvedValueOnce(null);
+    const anon = await createRoom(post('/api/kamisabi/room', { name: 'x', brand: 'music_ml' }, undefined, '9.9.9.1'));
+    expect(anon.status).toBe(403);
+    expect((await anon.json()).code).toBe('NOT_ALLOWED');
+
+    vi.mocked(getServerSession).mockResolvedValueOnce({ user: { username: 'someone' } } as never);
+    const other = await createRoom(post('/api/kamisabi/room', { name: 'x', brand: 'music_ml' }, undefined, '9.9.9.2'));
+    expect(other.status).toBe(403);
+
+    process.env.KAMISABI_ROOM_HOSTS = '';
+    const closed = await createRoom(post('/api/kamisabi/room', { name: 'x', brand: 'music_ml' }, undefined, '9.9.9.3'));
+    expect(closed.status).toBe(403);
+  });
+
   test('開房：快照曲目、房主 seat 0、回 code/token', async () => {
     const r = await openRoom();
     expect(r.code).toMatch(/^[A-Z2-9]{5}$/);

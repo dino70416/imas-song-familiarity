@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSession, signIn, signOut } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 
 /**
  * 簡單的 Header 元件，提供導航功能與登入狀態顯示。
@@ -83,9 +83,10 @@ export default function Header() {
               </button>
             </>
           ) : (
-            <button 
-              onClick={() => signIn()} 
-              className="btn btn-primary" 
+            <button
+              // 直接帶「相對路徑」到 /login，不經 NextAuth 的 signIn()：它會把 callbackUrl 改寫成 NEXTAUTH_URL（手機連區網 IP 時會變 localhost）
+              onClick={() => window.location.assign(`/login?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`)}
+              className="btn btn-primary"
               style={{ padding: '6px 12px', fontSize: '12px' }}
             >
               登入

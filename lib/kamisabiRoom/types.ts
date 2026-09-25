@@ -15,7 +15,8 @@ export const ROOM_MODE_LABEL: Record<RoomMode, string> = {
 
 /** 大廳人數上限（時間軸規則 2–8 人；搶牌模式也用同一上限，畫面才放得下） */
 export const MAX_PLAYERS = 8;
-export const MIN_PLAYERS = 2;
+/** 一個人也能開局（自己練習；時間軸就一個人排） */
+export const MIN_PLAYERS = 1;
 export const TIMELINE_HAND_SIZE = 5;
 /** 出題後幾毫秒開始同步播放（讓所有人先預載） */
 export const NEXT_CARD_DELAY_MS = 3000;

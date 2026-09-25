@@ -54,19 +54,21 @@ describe('RoomClient', () => {
     expect(screen.queryByText('進入遊戲')).toBeNull();
   });
 
-  test('房主：大廳顯示房號、玩法選單；人數不足時不能開始；加入第二人後開始 → 進遊戲畫面', async () => {
+  test('房主：大廳顯示房號、玩法選單；一個人也能開始；加入第二人後開始 → 進遊戲畫面', async () => {
     const { doc, calls } = makeDoc();
     localStorage.setItem('kamisabi:room:ABCDE', JSON.stringify({ playerId: 'p1', token: 'tok1', name: '房主' }));
     render(<RoomClient code="ABCDE" />);
     await screen.findByText('ABCDE');
     const startBtn = screen.getByText('進入遊戲') as HTMLButtonElement;
-    expect(startBtn.disabled).toBe(true);
-    expect(screen.getByText(/至少需要 2 位玩家/)).toBeDefined();
+    expect(startBtn.disabled).toBe(false);
+    expect(screen.getByText(/一個人也能玩/)).toBeDefined();
+    expect(screen.queryByText(/至少需要/)).toBeNull();
 
     // 模擬另一個人加入（輪詢會抓到；這裡直接改資料再觸發 visibilitychange 讓它重抓）
     doc.players = [host, { id: 'p2', room_id: 'r1', name: '未来', seat: 1, is_host: false, joined_at: '' }];
     document.dispatchEvent(new Event('visibilitychange'));
-    await waitFor(() => expect((screen.getByText('進入遊戲') as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(screen.queryByText(/一個人也能玩/)).toBeNull());
+    expect((screen.getByText('進入遊戲') as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByLabelText(/かるたモード/));
     fireEvent.click(screen.getByText('進入遊戲'));

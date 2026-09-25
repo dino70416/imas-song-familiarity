@@ -1,12 +1,14 @@
 import { prisma } from './lib/prisma';
 
 /**
- * 歌牌背面印的リリース日（2026-09-24 照實體卡片抄錄，50 首）。
+ * 歌牌背面印的リリース日（依品牌分表，曲名對該品牌的 Song.title）。
  * 規則：時間軸模式的發行日以卡片為準；跟 Neon Song.releaseDate 不一致時用卡片的蓋過去。
  *
  *   npm run seed:card-dates            比對並覆寫不一致的
  *   npm run seed:card-dates -- --check 只比對不寫入
  */
+
+/** ミリオンライブ！歌牌 50 首（2026-09-24 照實體卡片抄錄） */
 export const CARD_RELEASE_DATES: Record<string, string> = {
   'ラビットファー': '2019-09-25',
   'Super Duper': '2020-03-25',
@@ -60,31 +62,94 @@ export const CARD_RELEASE_DATES: Record<string, string> = {
   'ハルカナミライ': '2015-10-28',
 };
 
+/** シャイニーカラーズ歌牌 50 首（2026-09-26 照實體卡片照片抄錄） */
+export const CARD_RELEASE_DATES_SHINY: Record<string, string> = {
+  '無垢': '2024-12-04',
+  'フェアリー・ガール': '2023-07-26',
+  'SOS': '2021-03-10',
+  'スローモーション': '2021-02-17',
+  'アポイント・シグナル': '2021-01-20',
+  'Secret utopIA': '2022-04-23',
+  '相合学舎': '2022-04-23',
+  'Killer×Mission': '2022-04-23',
+  '泥濘鳴鳴': '2024-12-11',
+  'Heads or Tails?': '2024-11-27',
+  'ハナムケのハナタバ': '2024-04-03',
+  '無自覚アプリオリ': '2023-11-08',
+  'Monochromatic': '2024-11-13',
+  'Happier': '2024-05-22',
+  'Fashionable': '2022-11-16',
+  'OH MY GOD': '2021-11-10',
+  'いつかのキミへ': '2024-10-09',
+  'Reflection': '2023-09-13',
+  'アスファルトを鳴らして': '2022-10-12',
+  'いつだって僕らは': '2020-09-16',
+  'Imitation Ghost': '2023-08-09',
+  'Timeless Shooting Star': '2021-09-08',
+  'Hide & Attack': '2020-08-19',
+  'Wandering Dream Chaser': '2019-09-11',
+  'Give me some more...': '2022-08-10',
+  'Anniversary': '2020-12-09',
+  'アルストロメリア': '2018-10-03',
+  '裸足じゃイラレナイ': '2024-01-24',
+  '拝啓タイムカプセル': '2021-07-14',
+  'ビーチブレイバー': '2019-07-10',
+  '夢咲きAfter School': '2018-09-05',
+  '時限式狂騒ワンダーランド': '2024-07-24',
+  '愚者の独白': '2022-06-15',
+  'Black Reverie': '2020-11-04',
+  'バベルシティ・グレイス': '2018-08-01',
+  'Shower of light': '2025-01-29',
+  'スマイルシンフォニア': '2021-05-19',
+  'トライアングル': '2019-05-08',
+  'ヒカリのdestination': '2018-07-04',
+  'Migratory Echoes': '2025-01-22',
+  'プリズムフレア': '2024-10-09',
+  'ツバサグラビティ': '2024-04-10',
+  "C'mon! Join Us": '2024-11-20',
+  '星の声': '2023-10-18',
+  '虹の行方': '2022-04-13',
+  'Resonance⁺': '2021-04-14',
+  'シャイノグラフィ': '2020-04-08',
+  'Ambitious Eve': '2019-04-10',
+  'Spread the Wings!!': '2018-06-06',
+  'メッセージ': '2023-07-12',
+};
+
+const BRANDS: [string, Record<string, string>][] = [
+  ['music_ml', CARD_RELEASE_DATES],
+  ['music_shiny', CARD_RELEASE_DATES_SHINY],
+];
+
 async function main() {
   const checkOnly = process.argv.includes('--check');
-  const titles = Object.keys(CARD_RELEASE_DATES);
-  const songs = await prisma.song.findMany({ where: { brand: 'music_ml', title: { in: titles } }, select: { id: true, title: true, releaseDate: true } });
-  const byTitle = new Map(songs.map((s) => [s.title, s]));
-
   let same = 0;
   let fixed = 0;
-  for (const [title, card] of Object.entries(CARD_RELEASE_DATES)) {
-    const song = byTitle.get(title);
-    if (!song) {
-      console.warn(`[找不到歌曲] ${title}`);
-      continue;
-    }
-    if (song.releaseDate === card) {
-      same++;
-      continue;
-    }
-    console.log(`[不一致] ${title}：資料庫 ${song.releaseDate ?? '（沒有）'} → 卡片 ${card}${checkOnly ? '（--check，未寫入）' : ''}`);
-    if (!checkOnly) {
-      await prisma.song.update({ where: { id: song.id }, data: { releaseDate: card } });
-      fixed++;
+  let total = 0;
+  for (const [brand, dates] of BRANDS) {
+    const titles = Object.keys(dates);
+    total += titles.length;
+    const songs = await prisma.song.findMany({ where: { brand, title: { in: titles } }, select: { id: true, title: true, releaseDate: true } });
+    const byTitle = new Map(songs.map((s) => [s.title, s]));
+
+    for (const [title, card] of Object.entries(dates)) {
+      const song = byTitle.get(title);
+      if (!song) {
+        console.warn(`[找不到歌曲] ${brand} ${title}`);
+        continue;
+      }
+      if (song.releaseDate === card) {
+        same++;
+        continue;
+      }
+      console.log(`[不一致] ${brand} ${title}：資料庫 ${song.releaseDate ?? '（沒有）'} → 卡片 ${card}${checkOnly ? '（--check，未寫入）' : ''}`);
+      if (!checkOnly) {
+        await prisma.song.update({ where: { id: song.id }, data: { releaseDate: card } });
+        fixed++;
+      }
     }
   }
-  console.log(`一致 ${same} / ${titles.length}${checkOnly ? '' : `，已用卡片日期覆寫 ${fixed} 首`}`);
+  console.log(`一致 ${same} / ${total}${checkOnly ? '' : `，已用卡片日期覆寫 ${fixed} 首`}`);
 }
 
 main()

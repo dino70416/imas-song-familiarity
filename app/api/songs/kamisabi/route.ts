@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { KARUTA_LYRICS } from '@/scripts/karuta-lyrics';
 
 export const revalidate = 3600; // 快取一小時（同 /api/songs/guess）
 
 /**
  * KAMISABI 出題機的題庫：只回傳有 Apple Music 曲目 ID 的歌
  * （歌牌有收錄的歌才會由站長用 scripts/seed-apple-ids.ts 補上 ID）。
+ * hasLyrics = 有かるた朗讀文字（npm run gen:karuta-tts 會依同一份清單產 mp3），歌詞本身不回傳。
  */
 export async function GET() {
   try {
@@ -30,6 +32,7 @@ export async function GET() {
       title: song.title,
       brand: song.brand,
       appleTrackId: song.appleTrackId as string,
+      hasLyrics: Boolean(KARUTA_LYRICS[song.title]),
       units: song.units.map((u) => ({ name: u.unit.name })),
       members: song.members.map((m) => ({ name: m.member.name })),
     }));

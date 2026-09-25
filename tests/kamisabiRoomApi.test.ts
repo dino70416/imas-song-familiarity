@@ -189,10 +189,13 @@ async function state(code: string) {
 }
 
 describe('start / next / claim / discard / end', () => {
-  test('start：非房主 403；人數不足 400；成功後 status=playing、mode 寫入、state 初始化', async () => {
+  test('start：非房主 403；一個人也能開始；成功後 status=playing、mode 寫入、state 初始化', async () => {
+    const solo = await openRoom('solo', '3.3.3.3');
+    const alone = await startRoom(post(`/api/kamisabi/room/${solo.code}/start`, { mode: 'intro' }, solo.token), ctx(solo.code));
+    expect(alone.status).toBe(200);
+    expect((await fake.getRoomByCode(solo.code))!.status).toBe('playing');
+
     const host = await openRoom();
-    const alone = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, host.token), ctx(host.code));
-    expect((await alone.json()).code).toBe('NOT_ENOUGH_PLAYERS');
     const guest = await joinAs(host.code, 'guest');
     const forbidden = await startRoom(post(`/api/kamisabi/room/${host.code}/start`, { mode: 'intro' }, guest.token), ctx(host.code));
     expect(forbidden.status).toBe(403);

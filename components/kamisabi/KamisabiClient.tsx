@@ -1,17 +1,23 @@
 'use client';
 
-import React from 'react';
-import PreviewPlayer from './PreviewPlayer';
+import React, { useRef } from 'react';
+import PreviewPlayer, { type PreviewPlayerHandle } from './PreviewPlayer';
 import KamisabiCard from './KamisabiCard';
 import RoomEntry from './room/RoomEntry';
 import { useKamisabi } from './useKamisabi';
 import { getBrandColor, getBrandDisplayName } from '@/lib/themeUtils';
 import { BRAND_VALUES } from '@/lib/brandMap';
 import { BrandIcon } from '@/components/BrandIcon';
+import type { KamisabiSoloMode } from './types';
+
+const SOLO_MODES: { value: KamisabiSoloMode; label: string; hint: string }[] = [
+  { value: 'intro', label: '🎵 イントロモード（播 30 秒試聽）', hint: '播 Apple Music 的 30 秒試聽，大家聽副歌搶牌。' },
+  { value: 'karuta', label: '📖 かるたモード（播歌詞朗讀）', hint: '朗讀歌牌上的歌詞片段（預先產好的音檔），大家聽歌詞搶牌。只出有朗讀檔的歌。' },
+];
 
 /**
- * KAMISABI 出題機（歌牌イントロモード用）。
- * 網頁只播 Apple Music 30 秒試聽、不給選項；主持人按「公佈答案」翻出仿實體歌牌。
+ * KAMISABI 出題機（歌牌イントロ／かるたモード用）。
+ * 網頁只播 Apple Music 30 秒試聽或歌詞朗讀檔、不給選項；主持人按「公佈答案」翻出仿實體歌牌。
  * 搶牌與計分在桌上用實體歌牌進行。
  */
 export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: boolean }) {
@@ -20,6 +26,8 @@ export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: 
     error,
     allSongs,
     brandCounts,
+    mode,
+    setMode,
     selectedBrands,
     setSelectedBrands,
     shuffleOrder,
@@ -29,18 +37,34 @@ export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: 
     index,
     currentSong,
     revealed,
+    otetsukiCount,
+    lastDiscarded,
+    held,
+    discarding,
     preview,
+    audioUrl,
     previewStatus,
     start,
     reveal,
+    beginOtetsuki,
+    cancelOtetsuki,
+    discard,
     next,
     retryPreview,
     finish,
     backToSetup,
   } = useKamisabi();
 
+  const playerRef = useRef<PreviewPlayerHandle>(null);
+
   const toggleBrand = (b: string) => {
     setSelectedBrands((prev) => (prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]));
+  };
+
+  /** 選好要丟回的牌（或沒牌可丟）：先在點擊的同一個 call stack 內續播（iOS 限制），再收回答案 */
+  const handleDiscard = (songId: string | null) => {
+    playerRef.current?.resume();
+    discard(songId);
   };
 
   if (phase === 'loading') {
@@ -75,8 +99,30 @@ export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: 
           <div style={{ padding: '0 40px' }}>
             <h2 className="sr-only">KAMISABI</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '16px', marginBottom: '28px', lineHeight: 1.7 }}>
-              搭配 KAMISABI 歌牌使用：網頁播 Apple Music 的 30 秒試聽、不給選項，大家聽副歌搶牌，主持人再按「公佈答案」翻牌。
+              搭配 KAMISABI 歌牌使用：網頁播 Apple Music 的 30 秒試聽或歌詞朗讀、不給選項，大家聽了搶牌，主持人再按「公佈答案」翻牌。
             </p>
+
+            <fieldset style={{ border: 'none', padding: 0, margin: '0 0 24px', textAlign: 'left', width: '100%' }}>
+              <legend style={{ fontWeight: 'bold', fontSize: '15px', marginBottom: '12px', color: 'var(--text-primary)' }}>🎤 出題方式：</legend>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {SOLO_MODES.map((m) => {
+                  const checked = mode === m.value;
+                  return (
+                    <label
+                      key={m.value}
+                      style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 12px', borderRadius: '12px', cursor: 'pointer', border: `1px solid ${checked ? 'var(--accent-color)' : 'var(--border-color)'}`, background: checked ? 'rgba(79, 70, 229, 0.06)' : 'transparent' }}
+                    >
+                      <input type="radio" name="solo-mode" value={m.value} checked={checked} onChange={() => setMode(m.value)} style={{ marginTop: '3px' }} />
+                      <span>
+                        <strong style={{ fontSize: '14px' }}>{m.label}</strong>
+                        <br />
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{m.hint}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <div style={{ marginBottom: '24px', textAlign: 'left', width: '100%' }}>
               <label style={{ display: 'block', fontWeight: 'bold', fontSize: '15px', marginBottom: '12px', color: 'var(--text-primary)' }}>
@@ -109,7 +155,11 @@ export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: 
               </div>
               <p style={{ fontSize: '13px', color: matchingSongsCount > 0 ? 'var(--accent-text-dark, #4f46e5)' : '#dc2626', fontWeight: '600', marginTop: '16px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span>📊</span>
-                {matchingSongsCount > 0 ? `已選品牌共有 ${matchingSongsCount} 首歌曲可出題` : '目前沒有可出題的歌曲（需先補 Apple Music 曲目 ID）'}
+                {matchingSongsCount > 0
+                  ? `已選品牌共有 ${matchingSongsCount} 首歌曲${mode === 'karuta' ? '有朗讀檔' : ''}可出題`
+                  : mode === 'karuta'
+                    ? '目前沒有可出題的歌曲（這些品牌還沒有朗讀檔）'
+                    : '目前沒有可出題的歌曲（需先補 Apple Music 曲目 ID）'}
               </p>
             </div>
 
@@ -171,14 +221,14 @@ export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: 
           <div className="kamisabi-player" style={{ minHeight: '220px', justifyContent: 'center', fontWeight: 'bold' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span className="animate-spin" style={{ width: '28px', height: '28px', borderRadius: '50%', borderTop: '3px solid white', borderBottom: '3px solid white', display: 'inline-block' }} />
-              載入試聽中…
+              {mode === 'karuta' ? '載入朗讀檔中…' : '載入試聽中…'}
             </div>
           </div>
         )}
 
         {previewStatus === 'error' && (
           <div style={{ width: '100%', padding: '24px', borderRadius: '16px', backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', textAlign: 'center' }}>
-            <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>⚠️ 這首歌的試聽暫時無法取得</p>
+            <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>{mode === 'karuta' ? '⚠️ 這首歌還沒有朗讀檔' : '⚠️ 這首歌的試聽暫時無法取得'}</p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button onClick={retryPreview} className="btn btn-secondary">重試</button>
               <button onClick={next} className="btn btn-primary">{isLast ? '結束' : '跳到下一題'}</button>
@@ -186,8 +236,14 @@ export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: 
           </div>
         )}
 
-        {previewStatus === 'ready' && preview && (
-          <PreviewPlayer key={preview.trackId} previewUrl={preview.previewUrl} onError={() => console.error('audio element error')} />
+        {previewStatus === 'ready' && audioUrl && (
+          <PreviewPlayer key={audioUrl} ref={playerRef} previewUrl={audioUrl} onError={() => console.error('audio element error')} />
+        )}
+
+        {!revealed && otetsukiCount > 0 && (
+          <div className="kamisabi-banner is-bad" role="status" style={{ width: '100%', textAlign: 'center' }}>
+            お手つき ×{otetsukiCount}：{lastDiscarded ? `『${lastDiscarded.title}』已丟回場上，稍後會重播。` : '沒有牌可丟。'}其他人繼續搶！
+          </div>
         )}
 
         {revealed ? (
@@ -221,17 +277,56 @@ export default function KamisabiClient({ canHostRoom = false }: { canHostRoom?: 
           </button>
         )}
 
-        {revealed && (
-          <button
-            onClick={next}
-            className="btn btn-primary"
-            style={{ padding: '16px 40px', borderRadius: '16px', fontSize: '20px', fontWeight: '900', boxShadow: '0 8px 30px rgba(79, 70, 229, 0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}
+        {discarding && (
+          <div
+            role="dialog"
+            aria-label="お手つき：選一張牌丟回場上"
+            className="kamisabi-room-panel"
+            style={{ width: '100%', border: '2px solid #ef4444', textAlign: 'center' }}
           >
-            {isLast ? '結束出題' : '下一題'}
-            <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
+            <h3 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 900, color: '#991b1b' }}>お手つき！答錯的人選一張自己已取得的牌丟回場上</h3>
+            {held.length === 0 ? (
+              <>
+                <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', fontSize: '14px' }}>還沒有人取得任何牌，沒有牌可丟，直接繼續播放讓大家再搶。</p>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => handleDiscard(null)} className="btn btn-primary">▶ 繼續播放</button>
+                  <button type="button" onClick={cancelOtetsuki} className="btn btn-secondary">取消</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 4px', color: 'var(--text-secondary)', fontSize: '13px' }}>點一張牌丟回去：那首歌會重新排進待播清單，音樂接著播。</p>
+                <div className="kamisabi-hand" style={{ justifyContent: 'safe center' }}>
+                  {held.map((c) => (
+                    <KamisabiCard key={c.song.id} title={c.song.title} brand={c.song.brand} artworkUrl={c.artworkUrl} onClick={() => handleDiscard(c.song.id)} />
+                  ))}
+                </div>
+                <button type="button" onClick={cancelOtetsuki} className="btn btn-secondary" style={{ marginTop: '8px' }}>取消</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {revealed && !discarding && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
+            <button
+              onClick={beginOtetsuki}
+              className="btn btn-secondary"
+              style={{ padding: '14px 24px', borderRadius: '16px', fontSize: '16px', fontWeight: '900', color: '#991b1b' }}
+            >
+              ❌ お手つき（答錯）
+            </button>
+            <button
+              onClick={next}
+              className="btn btn-primary"
+              style={{ padding: '16px 40px', borderRadius: '16px', fontSize: '20px', fontWeight: '900', boxShadow: '0 8px 30px rgba(79, 70, 229, 0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              {isLast ? '結束出題' : '下一題'}
+              <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          </div>
         )}
       </div>
     </div>

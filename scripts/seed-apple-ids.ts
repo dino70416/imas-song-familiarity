@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
  *
  * 只補「歌牌（KAMISABI 等）有收錄」的歌。格式同 seed-youtube-ids.ts：
  *   key   = 曲名（與 DB 的 Song.title 完全相同）
- *           也可以用 slug（例如 "ml/12087"）避免同名歌曲撞到
+ *           同名歌曲（跨品牌）撞到時改用 "slug:<Song.slug>"（含「/」的舊式 slug 也可直接當 key）
  *   value = Apple Music 分享連結 或 純數字 trackId 或 ''（確認 Apple Music 沒有這首）
  *
  * Apple Music 連結範例（兩種都可以）：
@@ -73,6 +73,60 @@ const appleTrackIdMap: Record<string, string> = {
   "Dreaming!": "https://music.apple.com/jp/song/dreaming/1718501962",
   "Thank You!": "https://music.apple.com/jp/song/thank-you/1718501904",
   "Welcome!!": "https://music.apple.com/jp/song/welcome/1718503198",
+  // ---- 2026-09-26 シャイニーカラーズ歌牌（50 首）背面 QR 解出的 Apple Music 連結；
+  //      Give me some more... / 拝啓タイムカプセル 的 QR 解不到，改用 iTunes 搜尋比對歌唱者與卡片日期取得。
+  //      部分 QR 直接指向「2023 Ver.」版本（Black Reverie 等 6 首），照卡片連結收錄。----
+  "無垢": "https://music.apple.com/jp/song/%E7%84%A1%E5%9E%A2/1778169039",
+  "フェアリー・ガール": "https://music.apple.com/jp/song/%E3%83%95%E3%82%A7%E3%82%A2%E3%83%AA%E3%83%BC-%E3%82%AC%E3%83%BC%E3%83%AB/1734552368",
+  "SOS": "https://music.apple.com/jp/song/sos/1734564170",
+  "スローモーション": "https://music.apple.com/jp/song/%E3%82%B9%E3%83%AD%E3%83%BC%E3%83%A2%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3/1734552142",
+  "アポイント・シグナル": "https://music.apple.com/jp/song/%E3%82%A2%E3%83%9D%E3%82%A4%E3%83%B3%E3%83%88-%E3%82%B7%E3%82%B0%E3%83%8A%E3%83%AB/1734555465",
+  "Secret utopIA": "https://music.apple.com/jp/song/secret-utopia/1734555969",
+  "相合学舎": "https://music.apple.com/jp/song/%E7%9B%B8%E5%90%88%E5%AD%A6%E8%88%8E/1734556469",
+  "Killer×Mission": "https://music.apple.com/jp/song/killer-mission/1734557140",
+  "泥濘鳴鳴": "https://music.apple.com/jp/song/%E6%B3%A5%E6%BF%98%E9%B3%B4%E9%B3%B4/1779614259",
+  "Heads or Tails?": "https://music.apple.com/jp/song/heads-or-tails/1776583128",
+  "ハナムケのハナタバ": "https://music.apple.com/jp/song/%E3%83%8F%E3%83%8A%E3%83%A0%E3%82%B1%E3%81%AE%E3%83%8F%E3%83%8A%E3%82%BF%E3%83%90/1737148956",
+  "無自覚アプリオリ": "https://music.apple.com/jp/song/%E7%84%A1%E8%87%AA%E8%A6%9A%E3%82%A2%E3%83%97%E3%83%AA%E3%82%AA%E3%83%AA/1734552413",
+  "Monochromatic": "https://music.apple.com/jp/song/monochromatic/1773459011",
+  "Happier": "https://music.apple.com/jp/song/happier/1745451771",
+  "Fashionable": "https://music.apple.com/jp/song/fashionable/1734550953",
+  "OH MY GOD": "https://music.apple.com/jp/song/oh-my-god/1734552686",
+  "いつかのキミへ": "https://music.apple.com/jp/song/%E3%81%84%E3%81%A4%E3%81%8B%E3%81%AE%E3%82%AD%E3%83%9F%E3%81%B8/1766923295",
+  "Reflection": "https://music.apple.com/jp/song/reflection/1734551677",
+  "アスファルトを鳴らして": "https://music.apple.com/jp/song/%E3%82%A2%E3%82%B9%E3%83%95%E3%82%A1%E3%83%AB%E3%83%88%E3%82%92%E9%B3%B4%E3%82%89%E3%81%97%E3%81%A6/1734550786",
+  "いつだって僕らは": "https://music.apple.com/jp/song/%E3%81%84%E3%81%A4%E3%81%A0%E3%81%A3%E3%81%A6%E5%83%95%E3%82%89%E3%81%AF/1734552152",
+  "Imitation Ghost": "https://music.apple.com/jp/song/imitation-ghost/1734552093",
+  "Timeless Shooting Star": "https://music.apple.com/jp/song/timeless-shooting-star/1734552361",
+  "Hide & Attack": "https://music.apple.com/jp/song/hide-attack/1734551534",
+  "Wandering Dream Chaser": "https://music.apple.com/jp/song/wandering-dream-chaser/1734551808",
+  "Give me some more...": "https://music.apple.com/jp/album/give-me-some-more/1734550590?i=1734550592",
+  "Anniversary": "https://music.apple.com/jp/song/anniversary/1734551903",
+  "アルストロメリア": "https://music.apple.com/jp/song/%E3%82%A2%E3%83%AB%E3%82%B9%E3%83%88%E3%83%AD%E3%83%A1%E3%83%AA%E3%82%A2/1734551409",
+  "裸足じゃイラレナイ": "https://music.apple.com/jp/song/%E8%A3%B8%E8%B6%B3%E3%81%98%E3%82%83%E3%82%A4%E3%83%A9%E3%83%AC%E3%83%8A%E3%82%A4/1725132078",
+  "拝啓タイムカプセル": "https://music.apple.com/jp/album/1734551569?i=1734551571",
+  "ビーチブレイバー": "https://music.apple.com/jp/song/%E3%83%93%E3%83%BC%E3%83%81%E3%83%96%E3%83%AC%E3%82%A4%E3%83%90%E3%83%BC/1734552665",
+  "夢咲きAfter School": "https://music.apple.com/jp/song/%E5%A4%A2%E5%92%B2%E3%81%8Dafter-school/1734551756",
+  "時限式狂騒ワンダーランド": "https://music.apple.com/jp/song/%E6%99%82%E9%99%90%E5%BC%8F%E7%8B%82%E9%A8%92%E3%83%AF%E3%83%B3%E3%83%80%E3%83%BC%E3%83%A9%E3%83%B3%E3%83%89/1753379826",
+  "愚者の独白": "https://music.apple.com/jp/song/%E6%84%9A%E8%80%85%E3%81%AE%E7%8B%AC%E7%99%BD/1734555069",
+  "Black Reverie": "https://music.apple.com/jp/song/black-reverie-2023-ver/1734554437",
+  "バベルシティ・グレイス": "https://music.apple.com/jp/song/%E3%83%90%E3%83%99%E3%83%AB%E3%82%B7%E3%83%86%E3%82%A3-%E3%82%B0%E3%83%AC%E3%82%A4%E3%82%B9-2023-ver/1734551413",
+  "Shower of light": "https://music.apple.com/jp/song/shower-of-light/1787242273",
+  "スマイルシンフォニア": "https://music.apple.com/jp/song/%E3%82%B9%E3%83%9E%E3%82%A4%E3%83%AB%E3%82%B7%E3%83%B3%E3%83%95%E3%82%A9%E3%83%8B%E3%82%A2/1734552519",
+  "トライアングル": "https://music.apple.com/jp/song/%E3%83%88%E3%83%A9%E3%82%A4%E3%82%A2%E3%83%B3%E3%82%B0%E3%83%AB/1734552062",
+  "ヒカリのdestination": "https://music.apple.com/jp/song/%E3%83%92%E3%82%AB%E3%83%AA%E3%81%AEdestination/1734551462",
+  "Migratory Echoes": "https://music.apple.com/jp/song/migratory-echoes/1785014674",
+  "プリズムフレア": "https://music.apple.com/jp/song/%E3%83%97%E3%83%AA%E3%82%BA%E3%83%A0%E3%83%95%E3%83%AC%E3%82%A2/1767335207",
+  "ツバサグラビティ": "https://music.apple.com/jp/song/%E3%83%84%E3%83%90%E3%82%B5%E3%82%B0%E3%83%A9%E3%83%93%E3%83%86%E3%82%A3/1738371611",
+  "C'mon! Join Us": "https://music.apple.com/jp/song/cmon-join-us/1775167773",
+  "星の声": "https://music.apple.com/jp/song/%E6%98%9F%E3%81%AE%E5%A3%B0/1710326926",
+  "虹の行方": "https://music.apple.com/jp/song/%E8%99%B9%E3%81%AE%E8%A1%8C%E6%96%B9/1734552828",
+  "Resonance⁺": "https://music.apple.com/jp/song/resonance-2023-ver/1734551849",
+  "シャイノグラフィ": "https://music.apple.com/jp/song/%E3%82%B7%E3%83%A3%E3%82%A4%E3%83%8E%E3%82%B0%E3%83%A9%E3%83%95%E3%82%A3-2023-ver/1734551273",
+  "Ambitious Eve": "https://music.apple.com/jp/song/ambitious-eve-2023-ver/1734552350",
+  "Spread the Wings!!": "https://music.apple.com/jp/song/spread-the-wings-2023-ver/1734551581",
+  // メッセージ：シンデレラガールズ也有同名曲，用 slug 指定 SC（アルストロメリア）那首
+  "slug:c6cf4f84b3ed0006c3730998d6f91c7e": "https://music.apple.com/jp/song/%E3%83%A1%E3%83%83%E3%82%BB%E3%83%BC%E3%82%B8/1734552459",
 };
 
 async function main() {
@@ -92,7 +146,7 @@ async function main() {
       continue;
     }
 
-    const where = key.includes('/') ? { slug: key } : { title: key };
+    const where = key.startsWith('slug:') ? { slug: key.slice(5) } : key.includes('/') ? { slug: key } : { title: key };
 
     try {
       const result = await prisma.song.updateMany({ where, data: { appleTrackId } });

@@ -9,9 +9,9 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 import RoomEntry from '../components/kamisabi/room/RoomEntry';
 
 const songs = [
-  { id: 's1', title: 'Song A', brand: 'music_ml', appleTrackId: '1', members: [], units: [] },
-  { id: 's2', title: 'Song B', brand: 'music_ml', appleTrackId: '2', members: [], units: [] },
-  { id: 's3', title: 'Song C', brand: 'music_shiny', appleTrackId: '3', members: [], units: [] },
+  { id: 's1', title: 'Song A', brand: 'music_ml', appleTrackId: '1', hasLyrics: true, members: [], units: [] },
+  { id: 's2', title: 'Song B', brand: 'music_ml', appleTrackId: '2', hasLyrics: true, members: [], units: [] },
+  { id: 's3', title: 'Song C', brand: 'music_shiny', appleTrackId: '3', hasLyrics: true, members: [], units: [] },
 ];
 const brandCounts = { music_ml: 2, music_shiny: 1 };
 

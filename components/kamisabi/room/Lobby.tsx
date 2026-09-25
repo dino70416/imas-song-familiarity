@@ -19,7 +19,7 @@ interface LobbyProps {
 const MODE_HINT: Record<RoomMode, string> = {
   intro: '進入遊戲後所有人按「準備完成」，房主再按「遊戲開始」。每題 3 秒後所有人同時聽 30 秒試聽，聽出是哪首就點那張歌牌；答對後 5 秒自動出下一張，沒人答對 35 秒也會換。點錯要把自己的一張牌丟回場上。アルバム 1 分、シングル 2 分。',
   karuta: '同イントロ，但播的是副歌歌詞的朗讀（沒有朗讀檔的歌會用裝置的語音合成）。',
-  timeline: '每人 5 張手牌（不能看發行日），輪流把牌放進時間軸。放錯罰抽一張，先出完手牌的人贏。2–8 人。',
+  timeline: '每人 5 張手牌（不能看發行日），輪流把牌放進時間軸。放錯罰抽一張，先出完手牌的人贏。1–8 人。',
 };
 
 /** 大廳：顯示房號、玩家；房主選玩法開始 */
@@ -90,6 +90,9 @@ export default function Lobby({ code, room, players, me, session, refresh }: Lob
               進入遊戲
             </button>
             {!enough && <p style={{ fontSize: '13px', color: '#b91c1c', marginTop: '8px' }}>至少需要 {MIN_PLAYERS} 位玩家，把邀請連結傳給朋友吧。</p>}
+            {enough && players.length === 1 && (
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px' }}>一個人也能玩；想多人一起搶就把邀請連結傳給朋友。</p>
+            )}
           </fieldset>
         ) : (
           <p style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>⏳ 等待房主開始遊戲…</p>

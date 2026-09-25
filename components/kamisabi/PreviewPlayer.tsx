@@ -1,10 +1,17 @@
 'use client';
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useImperativeHandle, useRef, useState, type Ref } from 'react';
+
+/** 父層可透過 ref 操作播放器（お手つき後續播） */
+export interface PreviewPlayerHandle {
+  /** 播放中就不動；暫停中從原位置續播；還沒播或已播完就從頭播 */
+  resume: () => void;
+}
 
 interface PreviewPlayerProps {
   previewUrl: string;
   onError?: () => void;
+  ref?: Ref<PreviewPlayerHandle>;
 }
 
 type PlayStatus = 'idle' | 'playing' | 'paused' | 'ended';
@@ -22,7 +29,7 @@ function formatSeconds(sec: number): string {
  * 所有播放都由主持人點擊觸發，避開 iOS / Chrome 的自動播放限制。
  * 換題時由父層以 key={trackId} 重新掛載，不需要自己重置狀態。
  */
-export default function PreviewPlayer({ previewUrl, onError }: PreviewPlayerProps) {
+export default function PreviewPlayer({ previewUrl, onError, ref }: PreviewPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [status, setStatus] = useState<PlayStatus>('idle');
   const [currentTime, setCurrentTime] = useState(0);
@@ -73,6 +80,17 @@ export default function PreviewPlayer({ previewUrl, onError }: PreviewPlayerProp
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
   const isPlaying = status === 'playing';
   const canResume = status === 'paused' && currentTime < duration - 0.25;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      resume: () => {
+        if (isPlaying) return;
+        playFrom(canResume ? currentTime : 0);
+      },
+    }),
+    [isPlaying, canResume, currentTime, playFrom],
+  );
 
   return (
     <div className="kamisabi-player" data-playing={isPlaying ? 'true' : 'false'}>
